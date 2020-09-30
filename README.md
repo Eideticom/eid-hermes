@@ -42,12 +42,24 @@ This part of the project implements a userspace library that provides
 an API whereby applications can offload part of their computation to
 eBPF-capable devices like eid-hermes. Note that long term this part
 may span other device types like, for example, [NVMe devices][7] and
-may come under the perview of a standards body like [SNIA][8]
+may come under the perview of a standards body like [SNIA][8].
+
+# Specification
+
+The specification for eid-hermes is located in Markdown files in the
+```specs``` folder. The files in that folder are as follows:
+
+* **[eid-hermes-theory-of-operation.md][9]** - An overview of how the
+    eid-hermes device interacts with the host and how a driver should
+    communicate with it to get work done.
+
+* **[eid-hermes-interface.md][10]** - The PCIe register interface to the
+    eid-hermes device and the overall BAR layout.
 
 # Licensing
 
 Where possible the code in this repository is licensed under the
-[Apache License, Version 2.0][9]. This is a permissive license allowing
+[Apache License, Version 2.0][11]. This is a permissive license allowing
 anyone to use this code, even for commercial purposes, if they so
 wish. Please refer to the full text of the license for more
 information.
@@ -55,9 +67,9 @@ information.
 # Contributing
 
 Contributions in the form of pull-requests are most welcome. The
-upstream version of this repo is located at [this link][10]. Note that
+upstream version of this repo is located at [this link][12]. Note that
 only PGP signed commits will be accepted so please setup [PGP
-signing][11] in order to commit to this project.
+signing][13] in order to commit to this project.
 
 [1]: https://www.eideticom.com/
 [2]: https://github.com/iovisor/bpf-docs/blob/master/eBPF.md
@@ -67,6 +79,8 @@ signing][11] in order to commit to this project.
 [6]: https://www.kernel.org/
 [7]: https://www.linkedin.com/posts/stephen-bates-8791263_nvm-express-working-groups-activity-6713828187782156288-pYrv
 [8]: https://www.snia.org/computational
-[9]: https://www.apache.org/licenses/LICENSE-2.0
-[10]: https://github.com/Eideticom/eid-hermes
-[11]: https://docs.github.com/en/github/authenticating-to-github/signing-commits
+[9]: specs/eid-hermes-theory-of-operation.md
+[10]: specs/eid-hermes-interface.md
+[11]: https://www.apache.org/licenses/LICENSE-2.0
+[12]: https://github.com/Eideticom/eid-hermes
+[13]: https://docs.github.com/en/github/authenticating-to-github/signing-commits
