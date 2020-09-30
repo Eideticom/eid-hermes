@@ -12,10 +12,42 @@ anyone can use this project to run said accelerators on the cloud and
 develop host code (such as drivers and userspace libraries) targetting
 said accelerators.
 
+# Overview
+
+This project consists of four main parts.
+
+## QEMU Model
+
+This part of the project will develop and ideally upstream a
+hermes-based PCIe device model. This code will, initially, be hosted
+in a public fork of [QEMU][4]. Some early work on such a model results
+in [this RFC][5].
+
+## AWS F1 Implementation
+
+This part of the project implements an eid-hermes bitstream which can
+run on an AWS F1 instance. This code will be contained in this repo
+and will consist mostly of RTL.
+
+## Linux Driver
+
+This part of the project implements a Linux driver for eid-hermes and
+should threfore work for both the QEMU model and the AWS F1 instance
+noted above. This code *may* be hosted in this repo initially and
+ideally will be upstreamed into the [Linux kernel][6].
+
+## eBPF Userspace Library
+
+This part of the project implements a userspace library that provides
+an API whereby applications can offload part of their computation to
+eBPF-capable devices like eid-hermes. Note that long term this part
+may span other device types like, for example, [NVMe devices][7] and
+may come under the perview of a standards body like [SNIA][8]
+
 # Licensing
 
 Where possible the code in this repository is licensed under the
-[Apache License, Version 2.0][4]. This is a permissive license allowing
+[Apache License, Version 2.0][9]. This is a permissive license allowing
 anyone to use this code, even for commercial purposes, if they so
 wish. Please refer to the full text of the license for more
 information.
@@ -23,13 +55,18 @@ information.
 # Contributing
 
 Contributions in the form of pull-requests are most welcome. The
-upstream version of this repo is located at [this link][5]. Note that
+upstream version of this repo is located at [this link][10]. Note that
 only PGP signed commits will be accepted so please setup [PGP
-signing][6] in order to commit to this project.
+signing][11] in order to commit to this project.
 
 [1]: https://www.eideticom.com/
 [2]: https://github.com/iovisor/bpf-docs/blob/master/eBPF.md
 [3]: https://aws.amazon.com/ec2/instance-types/f1/
-[4]: https://www.apache.org/licenses/LICENSE-2.0
-[5]: https://github.com/Eideticom/eid-hermes
-[6]:https://docs.github.com/en/github/authenticating-to-github/signing-commits
+[4]: https://github.com/qemu/qemu
+[5]: https://lists.sr.ht/~philmd/qemu/patches/5932
+[6]: https://www.kernel.org/
+[7]: https://www.linkedin.com/posts/stephen-bates-8791263_nvm-express-working-groups-activity-6713828187782156288-pYrv
+[8]: https://www.snia.org/computational
+[9]: https://www.apache.org/licenses/LICENSE-2.0
+[10]: https://github.com/Eideticom/eid-hermes
+[11]: https://docs.github.com/en/github/authenticating-to-github/signing-commits
