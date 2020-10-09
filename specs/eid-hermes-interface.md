@@ -36,12 +36,12 @@ registers are defined in the table below.
 | 0x00   | 1      | EHVER   | RO   | 1     | Interface version      |
 | 0x04   | 4      | EHTS    | RO   | NA    | Timestamp (seconds since epoch) |
 | 0x08   | 1      | EHENG   | RO   | NA    | Number of eBPF Engines |
-| 0x09   | 1      | EHSLOT  | RO   | NA    | Number of program slots   |
-| 0x0A   | 1      | EHPM    | RO   | NA    | Number of data slots |
-| 0x0C   | 4      | EHSOFF  | RO   | NA    | Base address in BAR4 of eBPF program slots |
-| 0x10   | 4      | EHSSZE  | RO   | NA    | Size of a single program slot |
-| 0x14   | 4      | EHPMOFF | RO   | NA    | Base address in BAR4 of eBPF program memory |
-| 0x18   | 4      | EHPMSZE | RO   | NA    | Size of a single data slot |
+| 0x09   | 1      | EHPSLOT | RO   | NA    | Number of program slots   |
+| 0x0A   | 1      | EHDSLOT | RO   | NA    | Number of data slots |
+| 0x0C   | 4      | EHPSOFF | RO   | NA    | Base address in BAR4 of eBPF program slots |
+| 0x10   | 4      | EHPSSZE | RO   | NA    | Size of a single program slot |
+| 0x14   | 4      | EHDSOFF | RO   | NA    | Base address in BAR4 of eBPF data slots |
+| 0x18   | 4      | EHDSSZE | RO   | NA    | Size of a single data slot |
 
 ## BAR2 Layout
 
