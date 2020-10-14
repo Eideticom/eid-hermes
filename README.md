@@ -19,9 +19,9 @@ This project consists of four main parts.
 ## QEMU Model
 
 This part of the project will develop and ideally upstream a
-hermes-based PCIe device model. This code will, initially, be hosted
-in a public fork of [QEMU][4]. Some early work on such a model results
-in [this RFC][5].
+hermes-based PCIe device model. Prior to upstream this code is hosted
+in this public fork of [QEMU][4]. Some early work on such a model
+results in [this RFC][5].
 
 ## AWS F1 Implementation
 
@@ -74,7 +74,7 @@ signing][13] in order to commit to this project.
 [1]: https://www.eideticom.com/
 [2]: https://github.com/iovisor/bpf-docs/blob/master/eBPF.md
 [3]: https://aws.amazon.com/ec2/instance-types/f1/
-[4]: https://github.com/qemu/qemu
+[4]: https://github.com/Eideticom/eid-hermes-qemu
 [5]: https://lists.sr.ht/~philmd/qemu/patches/5932
 [6]: https://www.kernel.org/
 [7]: https://www.linkedin.com/posts/stephen-bates-8791263_nvm-express-working-groups-activity-6713828187782156288-pYrv
