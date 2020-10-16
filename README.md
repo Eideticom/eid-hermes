@@ -1,10 +1,10 @@
-# eid-hermes: An open-source eBPF accelerator for AWS F1 instances.
+# eid-hermes: An open-source eBPF accelerator for QEMU and AWS F1 instances.
 
 # Introduction
 
 This is an open-source [Eideticom][1]-led project that explores how
-[eBPF][2]-based FPGA accelerators can be used to offload application
-code from host processors.
+[eBPF][2]-based accelerators can be used to offload application code
+from host processors.
 
 This repository contains the source code for an eBPF-based PCIe
 accelerator design that can be run on [AWS F1 servers][3]. As such,
