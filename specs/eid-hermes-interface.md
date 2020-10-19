@@ -33,7 +33,7 @@ registers are defined in the table below.
 
 |Offset  | Length | Name    | Mode | Value | Description            |
 |--------|--------|---------|------|-------|------------------------|
-| 0x00   | 1      | EHVER   | RO   | 1     | Interface version      |
+| 0x00   | 4      | EHVER   | RO   | 1     | Interface version      |
 | 0x04   | 4      | EHTS    | RO   | NA    | Timestamp (seconds since epoch) |
 | 0x08   | 1      | EHENG   | RO   | NA    | Number of eBPF Engines |
 | 0x09   | 1      | EHPSLOT | RO   | NA    | Number of program slots   |
