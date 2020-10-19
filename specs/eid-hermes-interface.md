@@ -34,14 +34,14 @@ registers are defined in the table below.
 |Offset  | Length | Name    | Mode | Value | Description            |
 |--------|--------|---------|------|-------|------------------------|
 | 0x00   | 4      | EHVER   | RO   | 1     | Interface version      |
-| 0x04   | 4      | EHTS    | RO   | NA    | Timestamp (seconds since epoch) |
-| 0x08   | 1      | EHENG   | RO   | NA    | Number of eBPF Engines |
-| 0x09   | 1      | EHPSLOT | RO   | NA    | Number of program slots   |
-| 0x0A   | 1      | EHDSLOT | RO   | NA    | Number of data slots |
-| 0x0C   | 4      | EHPSOFF | RO   | NA    | Base address in BAR4 of eBPF program slots |
-| 0x10   | 4      | EHPSSZE | RO   | NA    | Size of a single program slot |
-| 0x14   | 4      | EHDSOFF | RO   | NA    | Base address in BAR4 of eBPF data slots |
-| 0x18   | 4      | EHDSSZE | RO   | NA    | Size of a single data slot |
+| 0x04   | 48     | EHBLD   | RO   | NA    | Build version (git describe) |
+| 0x34   | 1      | EHENG   | RO   | NA    | Number of eBPF Engines |
+| 0x35   | 1      | EHPSLOT | RO   | NA    | Number of program slots   |
+| 0x36   | 1      | EHDSLOT | RO   | NA    | Number of data slots |
+| 0x38   | 4      | EHPSOFF | RO   | NA    | Base address in BAR4 of eBPF program slots |
+| 0x3C   | 4      | EHPSSZE | RO   | NA    | Size of a single program slot |
+| 0x40   | 4      | EHDSOFF | RO   | NA    | Base address in BAR4 of eBPF data slots |
+| 0x44   | 4      | EHDSSZE | RO   | NA    | Size of a single data slot |
 
 ## BAR2 Layout
 
