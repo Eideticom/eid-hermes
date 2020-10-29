@@ -1,0 +1,43 @@
+#
+# Copyright (c) 2020. Eidetic Communications Inc.
+# All rights reserved.
+#
+
+- name: Check if pcimem is installed
+  stat:
+    path: /usr/local/bin/pcimem
+  register: pcimem_installed
+
+- name: Install pcimem
+  block:
+    - name: Create temporary directory
+      tempfile:
+        state: directory
+      register: tmpdir
+
+    - name: Clone pcimem
+      git:
+        repo: https://github.com/billfarrow/pcimem.git
+        depth: 1
+        recursive: true
+        dest: "{{ tmpdir.path }}"
+        accept_hostkey: yes
+
+    - name: Compile pcimem
+      make:
+        chdir: "{{ tmpdir.path }}"
+
+    - name: Install pcimem
+      become: yes
+      copy:
+        src: "{{ tmpdir.path }}/pcimem"
+        dest: /usr/local/bin/pcimem
+        remote_src: yes
+        mode: 0755
+
+  always:
+    - name: Cleanup
+      file:
+        path: "{{ tmpdir.path }}"
+        state: absent
+  when: not pcimem_installed.stat.exists

@@ -56,10 +56,26 @@ The specification for eid-hermes is located in Markdown files in the
 * **[eid-hermes-interface.md][10]** - The PCIe register interface to the
     eid-hermes device and the overall BAR layout.
 
+# Dependencies and host configuration
+
+Eid-hermes uses the [XDMA][11] kernel module for data transfer between the host
+and the device. That driver needs to be patched to accept the Hermes PCI
+device/vendor ID.
+
+To facilitate installation, an [Ansible][12] playbook is provided, which also
+installs some helper programs, such as [pcimem][13].
+
+To run it, first install ansible then run:
+
+```
+cd ansible
+ansible-playbook hermes.yml -K
+```
+
 # Licensing
 
 Where possible the code in this repository is licensed under the
-[Apache License, Version 2.0][11]. This is a permissive license allowing
+[Apache License, Version 2.0][14]. This is a permissive license allowing
 anyone to use this code, even for commercial purposes, if they so
 wish. Please refer to the full text of the license for more
 information.
@@ -67,9 +83,9 @@ information.
 # Contributing
 
 Contributions in the form of pull-requests are most welcome. The
-upstream version of this repo is located at [this link][12]. Note that
+upstream version of this repo is located at [this link][15]. Note that
 only PGP signed commits will be accepted so please setup [PGP
-signing][13] in order to commit to this project.
+signing][16] in order to commit to this project.
 
 [1]: https://www.eideticom.com/
 [2]: https://github.com/iovisor/bpf-docs/blob/master/eBPF.md
@@ -81,6 +97,9 @@ signing][13] in order to commit to this project.
 [8]: https://www.snia.org/computational
 [9]: specs/eid-hermes-theory-of-operation.md
 [10]: specs/eid-hermes-interface.md
-[11]: https://www.apache.org/licenses/LICENSE-2.0
-[12]: https://github.com/Eideticom/eid-hermes
-[13]: https://docs.github.com/en/github/authenticating-to-github/signing-commits
+[11]: https://github.com/aws/aws-fpga/tree/master/sdk/linux_kernel_drivers/xdma
+[12]: https://www.ansible.com/
+[13]: https://github.com/billfarrow/pcimem
+[14]: https://www.apache.org/licenses/LICENSE-2.0
+[15]: https://github.com/Eideticom/eid-hermes
+[16]: https://docs.github.com/en/github/authenticating-to-github/signing-commits

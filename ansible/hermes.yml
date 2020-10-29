@@ -1,0 +1,17 @@
+#
+# Copyright (c) 2020. Eidetic Communications Inc.
+# All rights reserved.
+#
+
+# This playbook can be used to test a Hermes device. It will download all
+# necessary software and run some tests.
+#
+# Note that currently this must be run directly inside the QEMU guest. We plan
+# to add support for running from the host in the future.
+
+- name: Test Hermes
+  hosts: localhost
+  roles:
+    - role: pcimem
+    - role: xdma
+    - role: xdma_test

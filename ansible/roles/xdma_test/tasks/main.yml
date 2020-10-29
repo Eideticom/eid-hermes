@@ -1,0 +1,40 @@
+#
+# Copyright (c) 2020. Eidetic Communications Inc.
+# All rights reserved.
+#
+
+- name: Ensure the xdma driver is loaded
+  become: yes
+  modprobe:
+    name: xdma
+    state: present
+
+- name: Compile and run xdma_test
+  block:
+    - name: Create temporary directory
+      tempfile:
+        state: directory
+      register: tmpdir
+
+    - name: Copy xdma_test.c to tmpdir
+      copy:
+        src: xdma_test.c
+        dest: "{{ tmpdir.path }}"
+
+    - name: Compile xdma_test
+      command:
+        cmd: gcc -o xdma_test xdma_test.c
+        chdir: "{{ tmpdir.path }}"
+
+    - name: Run xdma_test
+      become: yes
+      command:
+        cmd: ./xdma_test
+        chdir: "{{ tmpdir.path }}"
+      changed_when: false
+
+  always:
+    - name: Cleanup
+      file:
+        path: "{{ tmpdir.path }}"
+        state: absent
