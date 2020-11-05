@@ -26,13 +26,13 @@ $(warning XVC_FLAGS: $(XVC_FLAGS).)
 
 topdir := $(shell cd $(src)/.. && pwd)
 
-TARGET_MODULE:=xdma
+TARGET_MODULE:=hermes
 
 EXTRA_CFLAGS := -I$(topdir)/include $(XVC_FLAGS)
 #EXTRA_CFLAGS += -D__LIBXDMA_DEBUG__
 
 ifneq ($(KERNELRELEASE),)
-	$(TARGET_MODULE)-objs := libxdma.o xdma_cdev.o cdev_sgdma.o cdev_xvc.o xdma_mod.o
+	$(TARGET_MODULE)-objs := libxdma.o xdma_cdev.o cdev_sgdma.o cdev_xvc.o hermes_mod.o
 	obj-m := $(TARGET_MODULE).o
 else
 	BUILDSYSTEM_DIR:=/lib/modules/$(shell uname -r)/build
@@ -47,14 +47,14 @@ clean:
 install: all
 	$(MAKE) -C $(BUILDSYSTEM_DIR) M=$(PWD) modules_install
 	depmod -a
-	install -m 644 10-xdma.rules /etc/udev/rules.d
-	-rmmod -s xdma || true
-	-modprobe xdma
+	install -m 644 10-hermes.rules /etc/udev/rules.d
+	-rmmod -s hermes || true
+	-modprobe hermes
 
 uninstall:
-	-rm -f /etc/udev/rules.d/10-xdma.rules
-	-rmmod -s xdma || true
-	-rm -f /lib/modules/`uname -r`/extra/xdma.ko
+	-rm -f /etc/udev/rules.d/10-hermes.rules
+	-rmmod -s hermes || true
+	-rm -f /lib/modules/`uname -r`/extra/hermes.ko
 	depmod -a
 
 # Allow make install and uninstall targets to work without having to set ec2 in the environment.
@@ -63,5 +63,5 @@ noop:
 endif
 
 ifneq ($(ec2),1)
-	CFLAGS_xdma_mod.o := -DINTERNAL_TESTING
+	CFLAGS_hermes_mod.o := -DINTERNAL_TESTING
 endif

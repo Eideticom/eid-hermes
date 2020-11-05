@@ -29,7 +29,7 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/errno.h>
-#include "xdma_mod.h"
+#include "hermes_mod.h"
 
 #define XDMA_NODE_NAME	"xdma"
 #define XDMA_MINOR_BASE (0)
