@@ -151,7 +151,7 @@ static struct xdma_pci_dev *xpdev_alloc(struct pci_dev *pdev)
 	return xpdev;
 }
 
-static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
+int xdma_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int rv = 0;
 	struct xdma_pci_dev *xpdev = NULL;
@@ -232,8 +232,9 @@ err_out:
 	xpdev_free(xpdev);
 	return rv;
 }
+EXPORT_SYMBOL(xdma_probe_one);
 
-static void remove_one(struct pci_dev *pdev)
+void xdma_remove_one(struct pci_dev *pdev)
 {
 	struct xdma_pci_dev *xpdev;
 
@@ -250,6 +251,7 @@ static void remove_one(struct pci_dev *pdev)
 
 	dev_set_drvdata(&pdev->dev, NULL);
 }
+EXPORT_SYMBOL(xdma_remove_one);
 
 static pci_ers_result_t xdma_error_detected(struct pci_dev *pdev,
 					pci_channel_state_t state)
@@ -345,8 +347,8 @@ static const struct pci_error_handlers xdma_err_handler = {
 static struct pci_driver pci_driver = {
 	.name = DRV_MODULE_NAME,
 	.id_table = pci_ids,
-	.probe = probe_one,
-	.remove = remove_one,
+	.probe = xdma_probe_one,
+	.remove = xdma_remove_one,
 	.err_handler = &xdma_err_handler,
 };
 

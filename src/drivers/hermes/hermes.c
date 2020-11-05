@@ -27,6 +27,9 @@
 #define PCI_VENDOR_EIDETICOM	0x1de5
 #define PCI_HERMES_DEVICE_ID	0x3000
 
+extern int xdma_probe_one(struct pci_dev *pdev, const struct pci_device_id *id);
+extern void xdma_remove_one(struct pci_dev *pdev);
+
 static struct pci_device_id pci_ids[] = {
 	{ PCI_DEVICE(PCI_VENDOR_EIDETICOM, PCI_HERMES_DEVICE_ID), },
 	{ 0, }
@@ -35,21 +38,12 @@ MODULE_DEVICE_TABLE(pci, pci_ids);
 
 static int hermes_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
-	int err;
-
-	err = pci_enable_device(pdev);
-	if (err < 0) {
-		dev_err(&pdev->dev, "Failed to enable device");
-		goto out;
-	}
-
-out:
-	return err;
+	return xdma_probe_one(pdev, id);
 }
 
 static void hermes_remove(struct pci_dev *pdev)
 {
-	pci_disable_device(pdev);
+	xdma_remove_one(pdev);
 }
 
 static struct pci_driver hermes_driver = {
