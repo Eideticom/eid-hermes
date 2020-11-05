@@ -25,13 +25,10 @@
 #ifndef __XDMA_VERSION_H__
 #define __XDMA_VERSION_H__
 
-#define DRV_MOD_MAJOR		2020
-#define DRV_MOD_MINOR		1
-#define DRV_MOD_PATCHLEVEL	01
+#define XDMA_DRV_MOD_MAJOR	2020
+#define XDMA_DRV_MOD_MINOR	1
+#define XDMA_DRV_MOD_PATCHLEVEL	01
 
-#define DRV_MODULE_VERSION      \
-	__stringify(DRV_MOD_MAJOR) "." \
-	__stringify(DRV_MOD_MINOR) "." \
-	__stringify(DRV_MOD_PATCHLEVEL)
+#define DRV_MODULE_VERSION "v0.1"
 
 #endif /* ifndef __XDMA_VERSION_H__ */

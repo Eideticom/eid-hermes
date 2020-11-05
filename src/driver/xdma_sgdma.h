@@ -26,7 +26,7 @@
 #define _XDMA_IOCALLS_POSIX_H_
 
 #include <linux/ioctl.h>
-#include "xdma_mod.h"
+#include "hermes_mod.h"
 
 #define IOCTL_XDMA_PERF_V1 (1)
 #define XDMA_ADDRMODE_MEMORY (0)
