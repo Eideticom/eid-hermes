@@ -101,6 +101,8 @@ struct xdma_pci_dev {
 	struct xdma_cdev xvc_cdev;
 
 	void *data;
+
+	void *priv;		/* used by other modules that use xdma */
 };
 
 struct xdma_io_cb {

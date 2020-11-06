@@ -119,6 +119,18 @@ static const struct pci_device_id pci_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
+void *xdma_pci_dev_get_priv(struct xdma_pci_dev *xpdev)
+{
+	return xpdev->priv;
+}
+EXPORT_SYMBOL(xdma_pci_dev_get_priv);
+
+void xdma_pci_dev_set_priv(struct xdma_pci_dev *xpdev, void *x)
+{
+	xpdev->priv = x;
+}
+EXPORT_SYMBOL(xdma_pci_dev_set_priv);
+
 static void xpdev_free(struct xdma_pci_dev *xpdev)
 {
 	struct xdma_dev *xdev = xpdev->xdev;
