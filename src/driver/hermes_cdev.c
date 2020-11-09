@@ -29,6 +29,8 @@
 #include <linux/pci.h>
 
 #include "hermes_mod.h"
+#include "xdma_cdev.h"
+#include "cdev_sgdma.h"
 
 #define HERMES_MINOR_BASE	0
 #define HERMES_MINOR_COUNT	16

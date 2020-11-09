@@ -26,7 +26,7 @@
 #define _XDMA_IOCALLS_POSIX_H_
 
 #include <linux/ioctl.h>
-
+#include "hermes_mod.h"
 
 #define IOCTL_XDMA_PERF_V1 (1)
 #define XDMA_ADDRMODE_MEMORY (0)
@@ -64,6 +64,8 @@ struct xdma_performance_ioctl {
 };
 
 
+ssize_t char_sgdma_read_write(struct xdma_cdev *xcdev, const char __user *buf,
+		size_t count, loff_t *pos, bool write);
 
 /* IOCTL codes */
 
