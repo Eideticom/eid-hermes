@@ -64,6 +64,8 @@ struct xdma_performance_ioctl {
 };
 
 int hpdev_init_channels(struct hermes_pci_dev *hpdev);
+ssize_t xdma_channel_read_write(struct xdma_channel *chnl,
+		const char __user *buf, size_t count, loff_t *pos, bool write);
 
 /* IOCTL codes */
 

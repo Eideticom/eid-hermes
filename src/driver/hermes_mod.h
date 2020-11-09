@@ -66,19 +66,6 @@ struct xdma_channel {
 	struct xdma_engine *engine;	/* engine instance, if needed */
 };
 
-struct xdma_cdev {
-	unsigned long magic;		/* structure ID for sanity checks */
-	struct hermes_pci_dev *hpdev;
-	struct xdma_dev *xdev;
-	dev_t cdevno;			/* character device major:minor */
-	struct cdev cdev;		/* character device embedded struct */
-	int bar;			/* PCIe BAR for HW access, if needed */
-	unsigned long base;		/* bar access offset */
-	struct xdma_engine *engine;	/* engine instance, if needed */
-	struct device *sys_device;	/* sysfs device */
-	spinlock_t lock;
-};
-
 /* XDMA PCIe device specific book-keeping */
 struct hermes_pci_dev {
 	unsigned long magic;		/* structure ID for sanity checks */

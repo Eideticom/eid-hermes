@@ -239,23 +239,20 @@ err_out:
  * descriptor table. submit the transfer. wait for the interrupt handler
  * to wake us on completion.
  */
-
-static ssize_t xdma_channel_read_write(struct file *file, const char __user *buf,
-		size_t count, loff_t *pos, bool write)
+ssize_t xdma_channel_read_write(struct xdma_channel *chnl,
+		const char __user *buf, size_t count, loff_t *pos, bool write)
 {
 	int rv;
 	ssize_t res = 0;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;
 	struct xdma_io_cb cb;
 
-	xdev = xcdev->xdev;
-	engine = xcdev->engine;
+	xdev = chnl->xdev;
+	engine = chnl->engine;
 
-	dbg_tfr("file 0x%p, priv 0x%p, buf 0x%p,%llu, pos %llu, W %d, %s.\n",
-		file, file->private_data, buf, (u64)count, (u64)*pos, write,
-		engine->name);
+	dbg_tfr("chnl 0x%p, buf 0x%p,%llu, pos %llu, W %d, %s.\n", chnl, buf,
+		(u64)count,(u64)*pos, write, engine->name);
 
 	if ((write && engine->dir != DMA_TO_DEVICE) ||
 	    (!write && engine->dir != DMA_FROM_DEVICE)) {
