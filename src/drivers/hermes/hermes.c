@@ -42,6 +42,10 @@ extern int xdma_probe_one(struct pci_dev *pdev, const struct pci_device_id *id);
 extern void xdma_remove_one(struct pci_dev *pdev);
 extern void *xdma_pci_dev_get_priv(void *xpdev);
 extern void *xdma_pci_dev_set_priv(void *xpdev, void *x);
+extern void *xdma_get_xcdev_h2c(void *xpdev);
+extern void *xdma_get_xcdev_c2h(void *xpdev);
+extern ssize_t xdma_char_sgdma_read_write(void *xcdev, const char __user *buf,
+		size_t count, loff_t *pos, bool write);
 
 static struct class *hermes_class;
 DEFINE_IDA(hermes_ida);
@@ -70,11 +74,114 @@ struct hermes_dev {
 	void *xpdev;
 };
 
+struct __attribute__((__packed__)) hermes_cmd_req {
+	uint8_t opcode;
+	uint8_t rsv0;
+	uint16_t cid;
+	uint32_t rsv1;
+	union {
+		struct __attribute__((__packed__)) {
+			uint8_t slot_type;
+			uint8_t slot_id;
+			uint16_t rsv;
+			uint64_t addr;
+			uint32_t len;
+		} xdma;
+		uint32_t cmd_specific[6];
+	};
+};
+
+enum hermes_opcode {
+	HERMES_REQ_SLOT = 0x00,
+	HERMES_REL_SLOT,
+	HERMES_WR = 0x10,
+	HERMES_RD,
+	HERMES_RUN = 0x80,
+};
+
+enum hermes_slot_type {
+	HERMES_SLOT_PROG,
+	HERMES_SLOT_DATA,
+};
+
 static struct pci_device_id pci_ids[] = {
 	{ PCI_DEVICE(PCI_VENDOR_EIDETICOM, PCI_HERMES_DEVICE_ID), },
 	{ 0, }
 };
 MODULE_DEVICE_TABLE(pci, pci_ids);
+
+void handle_xdma(struct hermes_cmd_req *req, struct hermes_dev *hermes)
+{
+	void *xcdev, *xpdev;
+	uint32_t slot_size;
+	loff_t pos;
+
+	xpdev = hermes->xpdev;
+
+	hermes_dbg("%s: opcode: 0x%x cid: 0x%x slot_type: 0x%x slot_id: 0x%x addr: 0x%llx len: 0x%x\n",
+			__func__, req->opcode, req->cid, req->xdma.slot_type,
+			req->xdma.slot_id, req->xdma.addr, req->xdma.len);
+
+	if (req->opcode == HERMES_WR)
+		xcdev = xdma_get_xcdev_h2c(xpdev);
+	else if (req->opcode == HERMES_RD)
+		xcdev = xdma_get_xcdev_c2h(xpdev);
+	else
+		goto invalid_opcode;
+
+	if (!xcdev)
+		goto no_xcdev;
+
+	if (req->xdma.slot_type == HERMES_SLOT_PROG) {
+		if (req->xdma.slot_id >= hermes->cfg.ehpslot)
+			goto invalid_slot_id;
+		pos = hermes->cfg.ehpsoff;
+		slot_size = hermes->cfg.ehpssze;
+	} else if (req->xdma.slot_type == HERMES_SLOT_DATA) {
+		if (req->xdma.slot_id >= hermes->cfg.ehdslot)
+			goto invalid_slot_id;
+		pos = hermes->cfg.ehdsoff;
+		slot_size = hermes->cfg.ehdssze;
+	} else {
+		goto invalid_slot_type;
+	}
+
+	if (req->xdma.len > slot_size)
+		goto invalid_length;
+
+	pos += slot_size * req->xdma.slot_id;
+
+	xdma_char_sgdma_read_write(xcdev, (char *) req->xdma.addr,
+			req->xdma.len, &pos, req->opcode == HERMES_WR);
+	return;
+
+invalid_opcode:
+	pr_err("%s: Invalid opcode: 0x%x\n", __func__, req->opcode);
+	return;
+no_xcdev:
+	pr_err("%s: No DMA channel available", __func__);
+	return;
+invalid_slot_id:
+	pr_err("%s: Invalid slot id: 0x%x\n", __func__, req->xdma.slot_id);
+	return;
+invalid_slot_type:
+	pr_err("%s: Invalid slot type: 0x%x\n", __func__, req->xdma.slot_type);
+	return;
+invalid_length:
+	pr_err("%s: DMA length greater than slot size: 0x%x > 0x%x\n", __func__,
+			req->xdma.len, slot_size);
+	return;
+}
+
+static int hermes_open(struct inode *inode, struct file *filp)
+{
+	struct hermes_dev *hermes;
+
+	hermes = container_of(inode->i_cdev, struct hermes_dev, cdev);
+	filp->private_data = hermes;
+
+	return 0;
+}
 
 static ssize_t hermes_read(struct file *filp, char __user *buf, size_t len,
 		    loff_t *off)
@@ -85,11 +192,43 @@ static ssize_t hermes_read(struct file *filp, char __user *buf, size_t len,
 static ssize_t hermes_write(struct file *filp, const char __user *buf,
 		size_t len, loff_t *off)
 {
-	return len;
+	int ret = 0;
+	struct hermes_cmd_req req;
+
+	if (len != sizeof(req)) {
+		ret = -ENOSPC;
+		goto out;
+	}
+
+	if (copy_from_user(&req, buf, len)) {
+		ret = -EFAULT;
+		goto out;
+	}
+
+	switch(req.opcode) {
+	case HERMES_WR:
+	case HERMES_RD:
+		handle_xdma(&req, filp->private_data);
+		ret = len;
+		break;
+	case HERMES_REQ_SLOT:
+	case HERMES_REL_SLOT:
+	case HERMES_RUN:
+		/* Not implemented */
+		ret = -ENOSYS;
+		break;
+	default:
+		ret = -EINVAL;
+		goto out;
+	}
+
+out:
+	return ret;
 }
 
 static const struct file_operations hermes_fops = {
     .owner = THIS_MODULE,
+    .open =  hermes_open,
     .read =  hermes_read,
     .write = hermes_write,
 };
