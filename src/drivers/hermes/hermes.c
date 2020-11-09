@@ -47,10 +47,24 @@ static struct class *hermes_class;
 DEFINE_IDA(hermes_ida);
 static dev_t hermes_devt;
 
+struct __attribute__((__packed__)) hermes_cfg {
+	uint32_t ehver;
+	char ehbld[48];
+	uint8_t eheng;
+	uint8_t ehpslot;
+	uint8_t ehdslot;
+	uint8_t rsv0;
+	uint32_t ehpsoff;
+	uint32_t ehpssze;
+	uint32_t ehdsoff;
+	uint32_t ehdssze;
+};
+
 struct hermes_dev {
 	struct device dev;
 	struct pci_dev *pdev;
 	struct cdev cdev;
+	struct hermes_cfg cfg;
 	int id;
 };
 
@@ -90,6 +104,23 @@ static void hermes_release(struct device *dev)
 	kfree(hermes);
 }
 
+static int hermes_read_cfg(struct hermes_dev *hermes)
+{
+	struct hermes_cfg *cfg;
+	void __iomem *bar0 = pci_iomap(hermes->pdev, 0, sizeof(*cfg));
+	if (!bar0)
+		return -EFAULT;
+
+	cfg = &hermes->cfg;
+
+	memcpy_fromio(cfg, bar0, sizeof(*cfg));
+	hermes_dbg("%s: ehver: 0x%x ehbld: %s eheng: 0x%x ehpslot: 0x%x ehdslot: 0x%x ehpsoff: 0x%x ehpssze: 0x%x ehdsoff: 0x%x ehdssze: 0x%x\n",
+			__func__, cfg->ehver, cfg->ehbld, cfg->eheng,
+			cfg->ehpslot, cfg->ehdslot, cfg->ehpsoff, cfg->ehpssze,
+			cfg->ehdsoff, cfg->ehdssze);
+	return 0;
+}
+
 static struct hermes_dev *hermes_create(struct pci_dev *pdev)
 {
 	struct hermes_dev *hermes;
@@ -100,6 +131,10 @@ static struct hermes_dev *hermes_create(struct pci_dev *pdev)
 		return ERR_PTR(-ENOMEM);
 
 	hermes->pdev = pdev;
+
+	err = hermes_read_cfg(hermes);
+	if (err)
+		goto out_free;
 
 	device_initialize(&hermes->dev);
 	hermes->dev.class = hermes_class;
