@@ -253,12 +253,11 @@ err_out:
 	return rv;
 }
 
-static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
+ssize_t xdma_char_sgdma_read_write(struct xdma_cdev *xcdev, const char __user *buf,
 		size_t count, loff_t *pos, bool write)
 {
 	int rv;
 	ssize_t res = 0;
-	struct xdma_cdev *xcdev = (struct xdma_cdev *)file->private_data;
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;
 	struct xdma_io_cb cb;
@@ -269,9 +268,8 @@ static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
 	xdev = xcdev->xdev;
 	engine = xcdev->engine;
 
-	dbg_tfr("file 0x%p, priv 0x%p, buf 0x%p,%llu, pos %llu, W %d, %s.\n",
-		file, file->private_data, buf, (u64)count, (u64)*pos, write,
-		engine->name);
+	dbg_tfr("xcdev 0x%p, buf 0x%p,%llu, pos %llu, W %d, %s.\n", xcdev, buf,
+		(u64)count,(u64)*pos, write, engine->name);
 
 	if ((write && engine->dir != DMA_TO_DEVICE) ||
 	    (!write && engine->dir != DMA_FROM_DEVICE)) {
@@ -299,18 +297,20 @@ static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
 
 	return res;
 }
+EXPORT_SYMBOL(xdma_char_sgdma_read_write);
 
-
-static ssize_t char_sgdma_write(struct file *file, const char __user *buf,
+ssize_t char_sgdma_write(struct file *file, const char __user *buf,
 				size_t count, loff_t *pos)
 {
-	return char_sgdma_read_write(file, (char *)buf, count, pos, 1);
+	return xdma_char_sgdma_read_write(file->private_data, (char *)buf,
+			count, pos, 1);
 }
 
 static ssize_t char_sgdma_read(struct file *file, char __user *buf,
 				size_t count, loff_t *pos)
 {
-	return char_sgdma_read_write(file, (char *)buf, count, pos, 0);
+	return xdma_char_sgdma_read_write(file->private_data, (char *)buf,
+			count, pos, 0);
 }
 
 static int ioctl_do_perf_start(struct xdma_engine *engine, unsigned long arg)
