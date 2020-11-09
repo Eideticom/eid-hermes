@@ -131,6 +131,22 @@ void xdma_pci_dev_set_priv(struct xdma_pci_dev *xpdev, void *x)
 }
 EXPORT_SYMBOL(xdma_pci_dev_set_priv);
 
+struct xdma_cdev *xdma_get_xcdev_c2h(struct xdma_pci_dev *xpdev)
+{
+	if (xpdev->c2h_channel_max)
+		return &xpdev->sgdma_c2h_cdev[0];
+	return NULL;
+}
+EXPORT_SYMBOL(xdma_get_xcdev_c2h);
+
+struct xdma_cdev *xdma_get_xcdev_h2c(struct xdma_pci_dev *xpdev)
+{
+	if (xpdev->h2c_channel_max)
+		return &xpdev->sgdma_h2c_cdev[0];
+	return NULL;
+}
+EXPORT_SYMBOL(xdma_get_xcdev_h2c);
+
 static void xpdev_free(struct xdma_pci_dev *xpdev)
 {
 	struct xdma_dev *xdev = xpdev->xdev;
