@@ -66,6 +66,8 @@ struct hermes_dev {
 	struct cdev cdev;
 	struct hermes_cfg cfg;
 	int id;
+
+	void *xpdev;
 };
 
 static struct pci_device_id pci_ids[] = {
@@ -197,6 +199,7 @@ static int hermes_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	xpdev = pci_get_drvdata(pdev);
 	xdma_pci_dev_set_priv(xpdev, hermes);
+	hermes->xpdev = xpdev;
 
 	return 0;
 
