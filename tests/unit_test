@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+
+import os
+import random
+import unittest
+
+class XdmaTests(unittest.TestCase):
+    h2c_chnl = '/dev/xdma0_h2c_0'
+    c2h_chnl = '/dev/xdma0_c2h_0'
+    dram_offset = 0x10000000
+
+    def randomBytes(self, count, seed=1):
+        random.seed(seed)
+        return bytes(random.randint(0, 255) for i in range(count))
+
+    def _testXDMA(self, len):
+        src = self.randomBytes(len)
+        with open(self.h2c_chnl, 'wb') as h2c, \
+                open(self.c2h_chnl, 'rb') as c2h:
+
+            h2c.seek(self.dram_offset)
+            write = h2c.write(src)
+            if len == -1:
+                self.fail('Failed to write to ' + self.h2c_chnl)
+
+            c2h.seek(self.dram_offset)
+            dst = c2h.read(len)
+            if dst is None:
+                self.fail('Failed to read from ' + self.c2h_chnl)
+
+            if dst != src:
+                self.fail('Data mismatch')
+
+    def testXDMA_small(self):
+        # uses a single DMA descriptor
+        self._testXDMA(256)
+
+    def testXDMA_medium(self):
+        # DMA descriptors will not cross a 4K address boundary
+        self._testXDMA(16*1024)
+
+    def testXDMA_large(self):
+        # DMA descriptors will cross a 4K address boundary
+        self._testXDMA(1024*1024)
+
+if __name__ == '__main__':
+    unittest.TestProgram(buffer=True, catchbreak=True)

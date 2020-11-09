@@ -75,10 +75,20 @@ cd ansible
 ansible-playbook hermes.yml -K
 ```
 
+# Testing
+
+We include unit tests on the [tests][15] directory. To run them:
+
+```
+sudo tests/unit_test
+```
+
+You may find the `-v` (verbose) and `-f` (failfast) options useful.
+
 # Licensing
 
 Where possible the code in this repository is licensed under the
-[Apache License, Version 2.0][15]. This is a permissive license allowing
+[Apache License, Version 2.0][16]. This is a permissive license allowing
 anyone to use this code, even for commercial purposes, if they so
 wish. Please refer to the full text of the license for more
 information.
@@ -86,9 +96,9 @@ information.
 # Contributing
 
 Contributions in the form of pull-requests are most welcome. The
-upstream version of this repo is located at [this link][16]. Note that
+upstream version of this repo is located at [this link][17]. Note that
 only PGP signed commits will be accepted so please setup [PGP
-signing][17] in order to commit to this project.
+signing][18] in order to commit to this project.
 
 [1]: https://www.eideticom.com/
 [2]: https://github.com/iovisor/bpf-docs/blob/master/eBPF.md
@@ -104,6 +114,7 @@ signing][17] in order to commit to this project.
 [12]: https://github.com/aws/aws-fpga/tree/master/sdk/linux_kernel_drivers/xdma
 [13]: https://www.ansible.com/
 [14]: https://github.com/billfarrow/pcimem
-[15]: https://www.apache.org/licenses/LICENSE-2.0
-[16]: https://github.com/Eideticom/eid-hermes
-[17]: https://docs.github.com/en/github/authenticating-to-github/signing-commits
+[15]: tests/
+[16]: https://www.apache.org/licenses/LICENSE-2.0
+[17]: https://github.com/Eideticom/eid-hermes
+[18]: https://docs.github.com/en/github/authenticating-to-github/signing-commits
