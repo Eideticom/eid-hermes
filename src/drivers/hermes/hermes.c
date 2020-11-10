@@ -25,6 +25,12 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 
+#ifdef __HERMES_DEBUG__
+#define hermes_dbg  pr_err
+#else
+#define hermes_dbg(...)
+#endif
+
 #define PCI_VENDOR_EIDETICOM	0x1de5
 #define PCI_HERMES_DEVICE_ID	0x3000
 
