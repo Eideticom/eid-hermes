@@ -1,12 +1,26 @@
 #!/usr/bin/env python3
 
+import ctypes
+import enum
 import os
 import random
+import struct
 import unittest
 
 def randomBytes(count, seed=1):
     random.seed(seed)
     return bytes(random.randint(0, 255) for i in range(count))
+
+class HermesOpcodes(enum.IntEnum):
+    REQ_SLOT = 0x00
+    REL_SLOT = 0x01
+    WRITE    = 0x10
+    READ     = 0x11
+    RUN_PROG = 0x80
+
+class HermesSlotTypes(enum.IntEnum):
+    PROG_SLOT = 0x00
+    DATA_SLOT = 0x01
 
 class XdmaTests(unittest.TestCase):
     h2c_chnl = '/dev/xdma0_h2c_0'
@@ -42,6 +56,86 @@ class XdmaTests(unittest.TestCase):
     def testXDMA_large(self):
         # DMA descriptors will cross a 4K address boundary
         self._testXDMA(1024*1024)
+
+class DriverTests(unittest.TestCase):
+    dev = '/dev/hermes0'
+
+    def setUp(self):
+        try:
+            self.hermes = open(self.dev, 'r+b', buffering=0)
+        except FileNotFoundError:
+            self.skipTest('Could not open ' + self.dev)
+
+    def tearDown(self):
+        self.hermes.close()
+
+    def _testReadWrite(self, slotType, dataLen):
+        ptr = ctypes.c_byte * dataLen
+        src = ptr(*randomBytes(dataLen, seed=1))
+        dst = ptr(*randomBytes(dataLen, seed=2))
+        self.assertNotEqual(list(src), list(dst))
+
+        srcPtr = ctypes.addressof(src)
+        dstPtr = ctypes.addressof(dst)
+
+        opcode = HermesOpcodes.WRITE
+        slotID = 0x00
+        srcAddr = [srcPtr & 0xFFFFFFFF, srcPtr >> 32]
+        cmd_specific = [(slotID << 8) | slotType, *srcAddr, dataLen, 0x00, 0x00]
+        cmd = self.genCmd(opcode=opcode, cmd_specific=cmd_specific)
+
+        self.hermes.write(cmd)
+
+        opcode = HermesOpcodes.READ
+        dstAddr = [dstPtr & 0xFFFFFFFF, dstPtr >> 32]
+        cmd_specific = [(slotID << 8) | slotType, *dstAddr, dataLen, 0x00, 0x00]
+        cmd = self.genCmd(opcode=opcode, cmd_specific=cmd_specific)
+
+        self.hermes.write(cmd)
+
+        self.assertEqual(list(src), list(dst))
+
+    def genCmd(self, opcode=0x00, cid=0x00, cmd_specific=[0x00]*6):
+        cmd = struct.Struct('<BxH4x6L')
+        return cmd.pack(opcode, cid, *cmd_specific)
+
+    def testInvalidOpcode(self):
+        with self.assertRaisesRegex(OSError, "Invalid argument"):
+            cmd = self.genCmd(opcode=0xFF)
+            self.hermes.write(cmd)
+
+    def testEmptyCommand(self):
+        with self.assertRaisesRegex(OSError, "No space left on device"):
+            cmd = randomBytes(0)
+            self.hermes.write(cmd)
+
+    def testShortCommand(self):
+        with self.assertRaisesRegex(OSError, "No space left on device"):
+            cmd = randomBytes(31)
+            self.hermes.write(cmd)
+
+    def testLongCommand(self):
+        with self.assertRaisesRegex(OSError, "No space left on device"):
+            cmd = randomBytes(33)
+            self.hermes.write(cmd)
+
+    def testReadWriteDataSmall(self):
+        self._testReadWrite(HermesSlotTypes.DATA_SLOT, 256)
+
+    def testReadWriteDataMedium(self):
+        self._testReadWrite(HermesSlotTypes.DATA_SLOT, 16*1024)
+
+    def testReadWriteDataLarge(self):
+        self._testReadWrite(HermesSlotTypes.DATA_SLOT, 1024*1024)
+
+    def testReadWriteProgramSmall(self):
+        self._testReadWrite(HermesSlotTypes.PROG_SLOT, 256)
+
+    def testReadWriteProgramMedium(self):
+        self._testReadWrite(HermesSlotTypes.PROG_SLOT, 16*1024)
+
+    def testReadWriteProgramLarge(self):
+        self._testReadWrite(HermesSlotTypes.PROG_SLOT, 1024*1024)
 
 if __name__ == '__main__':
     unittest.TestProgram(buffer=True, catchbreak=True)
