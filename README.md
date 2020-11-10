@@ -31,45 +31,41 @@ and will consist mostly of RTL.
 
 ## Linux Driver
 
-This part of the project implements a Linux driver for eid-hermes and
+This part of the project implements a [Linux driver][6] for eid-hermes and
 should threfore work for both the QEMU model and the AWS F1 instance
-noted above. This code *may* be hosted in this repo initially and
-ideally will be upstreamed into the [Linux kernel][6].
+noted above. This code is hosted in this repo initially and
+ideally will be upstreamed into the [Linux kernel][7].
 
 ## eBPF Userspace Library
 
 This part of the project implements a userspace library that provides
 an API whereby applications can offload part of their computation to
 eBPF-capable devices like eid-hermes. Note that long term this part
-may span other device types like, for example, [NVMe devices][7] and
-may come under the perview of a standards body like [SNIA][8].
+may span other device types like, for example, [NVMe devices][8] and
+may come under the perview of a standards body like [SNIA][9].
 
 # Specification
 
 The specification for eid-hermes is located in Markdown files in the
 ```specs``` folder. The files in that folder are as follows:
 
-* **[eid-hermes-theory-of-operation.md][9]** - An overview of how the
+* **[eid-hermes-theory-of-operation.md][10]** - An overview of how the
     eid-hermes device interacts with the host and how a driver should
     communicate with it to get work done.
 
-* **[eid-hermes-interface.md][10]** - The PCIe register interface to the
+* **[eid-hermes-interface.md][11]** - The PCIe register interface to the
     eid-hermes device and the overall BAR layout.
 
-* **[eid-hermes-commands-format.md][11]** - The list and format of commands
+* **[eid-hermes-commands-format.md][12]** - The list and format of commands
   that can be sent to an eid-hermes device or driver.
 
-* **[eid-hermes-dirver-interface.md][12]** - The interface provided by the
+* **[eid-hermes-dirver-interface.md][13]** - The interface provided by the
   Hermes kernel driver.
 
-# Dependencies and host configuration
+# Host configuration
 
-Eid-hermes uses the [XDMA][13] kernel module for data transfer between the host
-and the device. That driver needs to be patched to accept the Hermes PCI
-device/vendor ID.
-
-To facilitate installation, an [Ansible][14] playbook is provided, which also
-installs some helper programs, such as [pcimem][15].
+An [Ansible][14] playbook is provided to install some helper programs, such as
+pcimem[15].
 
 To run it, first install ansible then run:
 
@@ -91,7 +87,7 @@ You may find the `-v` (verbose) and `-f` (failfast) options useful.
 # Licensing
 
 Where possible the code in this repository is licensed under the
-[Apache License, Version 2.0][16]. This is a permissive license allowing
+[Apache License, Version 2.0][17]. This is a permissive license allowing
 anyone to use this code, even for commercial purposes, if they so
 wish. Please refer to the full text of the license for more
 information.
@@ -108,14 +104,14 @@ signing][19] in order to commit to this project.
 [3]: https://aws.amazon.com/ec2/instance-types/f1/
 [4]: https://github.com/Eideticom/eid-hermes-qemu
 [5]: https://lists.sr.ht/~philmd/qemu/patches/5932
-[6]: https://www.kernel.org/
-[7]: https://www.linkedin.com/posts/stephen-bates-8791263_nvm-express-working-groups-activity-6713828187782156288-pYrv
-[8]: https://www.snia.org/computational
-[9]: specs/eid-hermes-theory-of-operation.md
-[10]: specs/eid-hermes-interface.md
-[11]: specs/eid-hermes-commands-format.md
-[12]: specs/eid-hermes-driver-interface.md
-[13]: https://github.com/aws/aws-fpga/tree/master/sdk/linux_kernel_drivers/xdma
+[6]: src/driver
+[7]: https://www.kernel.org/
+[8]: https://www.linkedin.com/posts/stephen-bates-8791263_nvm-express-working-groups-activity-6713828187782156288-pYrv
+[9]: https://www.snia.org/computational
+[10]: specs/eid-hermes-theory-of-operation.md
+[11]: specs/eid-hermes-interface.md
+[12]: specs/eid-hermes-commands-format.md
+[13]: specs/eid-hermes-driver-interface.md
 [14]: https://www.ansible.com/
 [15]: https://github.com/billfarrow/pcimem
 [16]: tests/
