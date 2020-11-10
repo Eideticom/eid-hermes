@@ -4,17 +4,17 @@ import os
 import random
 import unittest
 
+def randomBytes(count, seed=1):
+    random.seed(seed)
+    return bytes(random.randint(0, 255) for i in range(count))
+
 class XdmaTests(unittest.TestCase):
     h2c_chnl = '/dev/xdma0_h2c_0'
     c2h_chnl = '/dev/xdma0_c2h_0'
     dram_offset = 0x10000000
 
-    def randomBytes(self, count, seed=1):
-        random.seed(seed)
-        return bytes(random.randint(0, 255) for i in range(count))
-
     def _testXDMA(self, len):
-        src = self.randomBytes(len)
+        src = randomBytes(len)
         with open(self.h2c_chnl, 'wb') as h2c, \
                 open(self.c2h_chnl, 'rb') as c2h:
 
