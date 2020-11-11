@@ -33,31 +33,31 @@ unsigned int sgdma_timeout = 10;
 module_param(sgdma_timeout, uint, 0644);
 MODULE_PARM_DESC(sgdma_timeout, "timeout in seconds for sgdma, default is 10 sec.");
 
-int xpdev_init_channels(struct xdma_pci_dev *xpdev)
+int hpdev_init_channels(struct hermes_pci_dev *hpdev)
 {
-	struct xdma_dev *xdev = xpdev->xdev;
+	struct xdma_dev *xdev = hpdev->xdev;
 	struct xdma_engine *engine;
 	int i;
 
 	/* iterate over channels */
-	for (i = 0; i < xpdev->h2c_channel_max; i++) {
+	for (i = 0; i < hpdev->h2c_channel_max; i++) {
 		engine = &xdev->engine_h2c[i];
 
 		if (engine->magic != MAGIC_ENGINE)
 			continue;
 
-		xpdev->xdma_h2c_chnl[i].engine = engine;
-		xpdev->xdma_h2c_chnl[i].xdev = xdev;
+		hpdev->xdma_h2c_chnl[i].engine = engine;
+		hpdev->xdma_h2c_chnl[i].xdev = xdev;
 	}
 
-	for (i = 0; i < xpdev->c2h_channel_max; i++) {
+	for (i = 0; i < hpdev->c2h_channel_max; i++) {
 		engine = &xdev->engine_c2h[i];
 
 		if (engine->magic != MAGIC_ENGINE)
 			continue;
 
-		xpdev->xdma_c2h_chnl[i].engine = engine;
-		xpdev->xdma_c2h_chnl[i].xdev = xdev;
+		hpdev->xdma_c2h_chnl[i].engine = engine;
+		hpdev->xdma_c2h_chnl[i].xdev = xdev;
 	}
 
 	return 0;

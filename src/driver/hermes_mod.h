@@ -68,7 +68,7 @@ struct xdma_channel {
 
 struct xdma_cdev {
 	unsigned long magic;		/* structure ID for sanity checks */
-	struct xdma_pci_dev *xpdev;
+	struct hermes_pci_dev *hpdev;
 	struct xdma_dev *xdev;
 	dev_t cdevno;			/* character device major:minor */
 	struct cdev cdev;		/* character device embedded struct */
@@ -80,7 +80,7 @@ struct xdma_cdev {
 };
 
 /* XDMA PCIe device specific book-keeping */
-struct xdma_pci_dev {
+struct hermes_pci_dev {
 	unsigned long magic;		/* structure ID for sanity checks */
 	struct pci_dev *pdev;	/* pci device struct from probe() */
 	struct xdma_dev *xdev;

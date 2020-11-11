@@ -47,7 +47,7 @@ MODULE_VERSION(DRV_MODULE_VERSION);
 MODULE_LICENSE("GPL v2");
 
 /* SECTION: Module global variables */
-static int xpdev_cnt;
+static int hpdev_cnt;
 
 static const struct pci_device_id pci_ids[] = {
 	{ PCI_DEVICE(0x1de5, 0x3000), },
@@ -55,66 +55,66 @@ static const struct pci_device_id pci_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
-static void xpdev_free(struct xdma_pci_dev *xpdev)
+static void hpdev_free(struct hermes_pci_dev *hpdev)
 {
-	struct xdma_dev *xdev = xpdev->xdev;
+	struct xdma_dev *xdev = hpdev->xdev;
 
-	xpdev->xdev = NULL;
-	pr_info("xpdev 0x%p, xdev 0x%p xdma_device_close.\n", xpdev, xdev);
-	xdma_device_close(xpdev->pdev, xdev);
-	xpdev_cnt--;
+	hpdev->xdev = NULL;
+	pr_info("hpdev 0x%p, xdev 0x%p xdma_device_close.\n", hpdev, xdev);
+	xdma_device_close(hpdev->pdev, xdev);
+	hpdev_cnt--;
 
-	kfree(xpdev);
+	kfree(hpdev);
 }
 
-static struct xdma_pci_dev *xpdev_alloc(struct pci_dev *pdev)
+static struct hermes_pci_dev *hpdev_alloc(struct pci_dev *pdev)
 {
-	struct xdma_pci_dev *xpdev = kmalloc(sizeof(*xpdev), GFP_KERNEL);
+	struct hermes_pci_dev *hpdev = kmalloc(sizeof(*hpdev), GFP_KERNEL);
 
-	if (!xpdev)
+	if (!hpdev)
 		return NULL;
-	memset(xpdev, 0, sizeof(*xpdev));
+	memset(hpdev, 0, sizeof(*hpdev));
 
-	xpdev->magic = MAGIC_DEVICE;
-	xpdev->pdev = pdev;
-	xpdev->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
-	xpdev->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
+	hpdev->magic = MAGIC_DEVICE;
+	hpdev->pdev = pdev;
+	hpdev->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
+	hpdev->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
 
-	xpdev_cnt++;
-	return xpdev;
+	hpdev_cnt++;
+	return hpdev;
 }
 
 static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int rv = 0;
-	struct xdma_pci_dev *xpdev = NULL;
+	struct hermes_pci_dev *hpdev = NULL;
 	struct xdma_dev *xdev;
 	void *hndl;
 
-	xpdev = xpdev_alloc(pdev);
-	if (!xpdev)
+	hpdev = hpdev_alloc(pdev);
+	if (!hpdev)
 		return -ENOMEM;
 
-	hndl = xdma_device_open(DRV_MODULE_NAME, pdev, &xpdev->h2c_channel_max,
-			&xpdev->c2h_channel_max);
+	hndl = xdma_device_open(DRV_MODULE_NAME, pdev, &hpdev->h2c_channel_max,
+			&hpdev->c2h_channel_max);
 	if (!hndl) {
 		rv = -EINVAL;
 		goto err_out;
 	}
 
-	if (xpdev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX) {
+	if (hpdev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX) {
 		pr_err("Maximun H2C channel limit reached\n");
 		rv = -EINVAL;
 		goto err_out;
 	}
 
-	if (xpdev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX) {
+	if (hpdev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX) {
 		pr_err("Maximun C2H channel limit reached\n");
 		rv = -EINVAL;
 		goto err_out;
 	}
 
-	if (!xpdev->h2c_channel_max && !xpdev->c2h_channel_max)
+	if (!hpdev->h2c_channel_max && !hpdev->c2h_channel_max)
 		pr_warn("NO engine found!\n");
 
 	/* make sure no duplicate */
@@ -132,39 +132,39 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	}
 
 	pr_info("%s xdma%d, pdev 0x%p, xdev 0x%p, 0x%p, ch %d,%d.\n",
-		dev_name(&pdev->dev), xdev->idx, pdev, xpdev, xdev,
-		xpdev->h2c_channel_max, xpdev->c2h_channel_max);
+		dev_name(&pdev->dev), xdev->idx, pdev, hpdev, xdev,
+		hpdev->h2c_channel_max, hpdev->c2h_channel_max);
 
-	xpdev->xdev = hndl;
+	hpdev->xdev = hndl;
 
-	rv = xpdev_init_channels(xpdev);
+	rv = hpdev_init_channels(hpdev);
 	if (rv)
 		goto err_out;
 
-	dev_set_drvdata(&pdev->dev, xpdev);
+	dev_set_drvdata(&pdev->dev, hpdev);
 
 	return 0;
 
 err_out:
 	pr_err("pdev 0x%p, err %d.\n", pdev, rv);
-	xpdev_free(xpdev);
+	hpdev_free(hpdev);
 	return rv;
 }
 
 static void remove_one(struct pci_dev *pdev)
 {
-	struct xdma_pci_dev *xpdev;
+	struct hermes_pci_dev *hpdev;
 
 	if (!pdev)
 		return;
 
-	xpdev = dev_get_drvdata(&pdev->dev);
-	if (!xpdev)
+	hpdev = dev_get_drvdata(&pdev->dev);
+	if (!hpdev)
 		return;
 
 	pr_info("pdev 0x%p, xdev 0x%p, 0x%p.\n",
-		pdev, xpdev, xpdev->xdev);
-	xpdev_free(xpdev);
+		pdev, hpdev, hpdev->xdev);
+	hpdev_free(hpdev);
 
 	dev_set_drvdata(&pdev->dev, NULL);
 }
@@ -172,20 +172,20 @@ static void remove_one(struct pci_dev *pdev)
 static pci_ers_result_t xdma_error_detected(struct pci_dev *pdev,
 					pci_channel_state_t state)
 {
-	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
+	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
 
 	switch (state) {
 	case pci_channel_io_normal:
 		return PCI_ERS_RESULT_CAN_RECOVER;
 	case pci_channel_io_frozen:
 		pr_warn("dev 0x%p,0x%p, frozen state error, reset controller\n",
-			pdev, xpdev);
-		xdma_device_offline(pdev, xpdev->xdev);
+			pdev, hpdev);
+		xdma_device_offline(pdev, hpdev->xdev);
 		pci_disable_device(pdev);
 		return PCI_ERS_RESULT_NEED_RESET;
 	case pci_channel_io_perm_failure:
 		pr_warn("dev 0x%p,0x%p, failure state error, req. disconnect\n",
-			pdev, xpdev);
+			pdev, hpdev);
 		return PCI_ERS_RESULT_DISCONNECT;
 	}
 	return PCI_ERS_RESULT_NEED_RESET;
@@ -193,58 +193,58 @@ static pci_ers_result_t xdma_error_detected(struct pci_dev *pdev,
 
 static pci_ers_result_t xdma_slot_reset(struct pci_dev *pdev)
 {
-	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
+	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
 
-	pr_info("0x%p restart after slot reset\n", xpdev);
+	pr_info("0x%p restart after slot reset\n", hpdev);
 	if (pci_enable_device_mem(pdev)) {
-		pr_info("0x%p failed to renable after slot reset\n", xpdev);
+		pr_info("0x%p failed to renable after slot reset\n", hpdev);
 		return PCI_ERS_RESULT_DISCONNECT;
 	}
 
 	pci_set_master(pdev);
 	pci_restore_state(pdev);
 	pci_save_state(pdev);
-	xdma_device_online(pdev, xpdev->xdev);
+	xdma_device_online(pdev, hpdev->xdev);
 
 	return PCI_ERS_RESULT_RECOVERED;
 }
 
 static void xdma_error_resume(struct pci_dev *pdev)
 {
-	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
+	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
 
-	pr_info("dev 0x%p,0x%p.\n", pdev, xpdev);
+	pr_info("dev 0x%p,0x%p.\n", pdev, hpdev);
 	pci_cleanup_aer_uncorrect_error_status(pdev);
 }
 
 #if KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE
 static void xdma_reset_prepare(struct pci_dev *pdev)
 {
-	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
+	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
 
-	pr_info("dev 0x%p,0x%p.\n", pdev, xpdev);
-	xdma_device_offline(pdev, xpdev->xdev);
+	pr_info("dev 0x%p,0x%p.\n", pdev, hpdev);
+	xdma_device_offline(pdev, hpdev->xdev);
 }
 
 static void xdma_reset_done(struct pci_dev *pdev)
 {
-	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
+	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
 
-	pr_info("dev 0x%p,0x%p.\n", pdev, xpdev);
-	xdma_device_online(pdev, xpdev->xdev);
+	pr_info("dev 0x%p,0x%p.\n", pdev, hpdev);
+	xdma_device_online(pdev, hpdev->xdev);
 }
 
 #elif KERNEL_VERSION(3, 16, 0) <= LINUX_VERSION_CODE
 static void xdma_reset_notify(struct pci_dev *pdev, bool prepare)
 {
-	struct xdma_pci_dev *xpdev = dev_get_drvdata(&pdev->dev);
+	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
 
-	pr_info("dev 0x%p,0x%p, prepare %d.\n", pdev, xpdev, prepare);
+	pr_info("dev 0x%p,0x%p, prepare %d.\n", pdev, hpdev, prepare);
 
 	if (prepare)
-		xdma_device_offline(pdev, xpdev->xdev);
+		xdma_device_offline(pdev, hpdev->xdev);
 	else
-		xdma_device_online(pdev, xpdev->xdev);
+		xdma_device_online(pdev, hpdev->xdev);
 }
 #endif
 

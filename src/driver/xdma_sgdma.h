@@ -63,7 +63,7 @@ struct xdma_performance_ioctl {
 	uint64_t pending_count;
 };
 
-int xpdev_init_channels(struct xdma_pci_dev *xpdev);
+int hpdev_init_channels(struct hermes_pci_dev *hpdev);
 
 /* IOCTL codes */
 
