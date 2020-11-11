@@ -44,8 +44,8 @@ int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine);
 void cdev_xvc_init(struct xdma_cdev *xcdev);
 void cdev_sgdma_init(struct xdma_cdev *xcdev);
 
-void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev);
-int xpdev_create_interfaces(struct xdma_pci_dev *xpdev);
+void hpdev_destroy_interfaces(struct hermes_pci_dev *hpdev);
+int hpdev_create_interfaces(struct hermes_pci_dev *hpdev);
 
 int bridge_mmap(struct file *file, struct vm_area_struct *vma);
 
