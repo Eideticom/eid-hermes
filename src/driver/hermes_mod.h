@@ -66,12 +66,27 @@ struct xdma_channel {
 	struct xdma_engine *engine;	/* engine instance, if needed */
 };
 
+struct __attribute__((__packed__)) hermes_cfg {
+	uint32_t ehver;
+	char ehbld[48];
+	uint8_t eheng;
+	uint8_t ehpslot;
+	uint8_t ehdslot;
+	uint8_t rsv0;
+	uint32_t ehpsoff;
+	uint32_t ehpssze;
+	uint32_t ehdsoff;
+	uint32_t ehdssze;
+};
+
 struct hermes_dev {
 	struct device dev;
 	struct pci_dev *pdev;
 	struct hermes_pci_dev *hpdev;
 	struct cdev cdev;
 	int id;
+
+	struct hermes_cfg cfg;
 };
 
 /* XDMA PCIe device specific book-keeping */
