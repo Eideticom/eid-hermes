@@ -43,6 +43,8 @@ int char_close(struct inode *inode, struct file *file);
 int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine);
 void cdev_xvc_init(struct xdma_cdev *xcdev);
 void cdev_sgdma_init(struct xdma_cdev *xcdev);
+struct xdma_cdev *cdev_get_c2h(struct hermes_pci_dev *hpdev);
+struct xdma_cdev *cdev_get_h2c(struct hermes_pci_dev *hpdev);
 
 void hpdev_destroy_interfaces(struct hermes_pci_dev *hpdev);
 int hpdev_create_interfaces(struct hermes_pci_dev *hpdev);

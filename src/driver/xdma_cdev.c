@@ -47,6 +47,20 @@ enum hpdev_flags_bits {
 	XDF_CDEV_SG,
 };
 
+struct xdma_cdev *cdev_get_c2h(struct hermes_pci_dev *hpdev)
+{
+	if (hpdev->c2h_channel_max)
+		return &hpdev->sgdma_c2h_cdev[0];
+	return NULL;
+}
+
+struct xdma_cdev *cdev_get_h2c(struct hermes_pci_dev *hpdev)
+{
+	if (hpdev->h2c_channel_max)
+		return &hpdev->sgdma_h2c_cdev[0];
+	return NULL;
+}
+
 static inline void hpdev_flag_set(struct hermes_pci_dev *hpdev,
 				enum hpdev_flags_bits fbit)
 {
