@@ -54,6 +54,23 @@ static void hermes_release(struct device *dev)
 	kfree(hermes);
 }
 
+static int hermes_read_cfg(struct hermes_pci_dev *hpdev)
+{
+	struct hermes_cfg *cfg;
+	hpdev->bar0 = pci_iomap(hpdev->pdev, 0, 32*MB);
+	if (!hpdev->bar0)
+		return -EFAULT;
+
+	cfg = &hpdev->cfg;
+
+	memcpy_fromio(cfg, hpdev->bar0, sizeof(*cfg));
+	pr_debug("ehver: 0x%x ehbld: %s eheng: 0x%x ehpslot: 0x%x ehdslot: 0x%x ehpsoff: 0x%x ehpssze: 0x%x ehdsoff: 0x%x ehdssze: 0x%x\n",
+			cfg->ehver, cfg->ehbld, cfg->eheng, cfg->ehpslot,
+			cfg->ehdslot, cfg->ehpsoff, cfg->ehpssze, cfg->ehdsoff,
+			cfg->ehdssze);
+	return 0;
+}
+
 int hermes_cdev_create(struct hermes_pci_dev *hpdev)
 {
 	struct pci_dev *pdev = hpdev->pdev;
@@ -66,6 +83,10 @@ int hermes_cdev_create(struct hermes_pci_dev *hpdev)
 
 	hermes->pdev = pdev;
 	hermes->hpdev = hpdev;
+
+	err = hermes_read_cfg(hpdev);
+	if (err)
+		goto out_free;
 
 	device_initialize(&hermes->dev);
 	hermes->dev.class = hermes_class;
