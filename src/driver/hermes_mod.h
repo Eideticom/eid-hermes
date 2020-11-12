@@ -66,11 +66,20 @@ struct xdma_channel {
 	struct xdma_engine *engine;	/* engine instance, if needed */
 };
 
+struct hermes_dev {
+	struct device dev;
+	struct pci_dev *pdev;
+	struct hermes_pci_dev *hpdev;
+	struct cdev cdev;
+	int id;
+};
+
 /* XDMA PCIe device specific book-keeping */
 struct hermes_pci_dev {
 	unsigned long magic;		/* structure ID for sanity checks */
 	struct pci_dev *pdev;	/* pci device struct from probe() */
 	struct xdma_dev *xdev;
+	struct hermes_dev *hdev;
 	int c2h_channel_max;
 	int h2c_channel_max;
 
@@ -85,5 +94,11 @@ struct xdma_io_cb {
 	struct sg_table sgt;
 	struct page **pages;
 };
+
+int hermes_cdev_init(void);
+void hermes_cdev_cleanup(void);
+
+void hermes_cdev_destroy(struct hermes_pci_dev *hpdev);
+int hermes_cdev_create(struct hermes_pci_dev *hpdev);
 
 #endif /* ifndef __XDMA_MODULE_H__ */

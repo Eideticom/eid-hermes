@@ -23,7 +23,7 @@ EXTRA_CFLAGS := -I$(topdir)/include
 #EXTRA_CFLAGS += -D__LIBXDMA_DEBUG__
 
 ifneq ($(KERNELRELEASE),)
-	$(TARGET_MODULE)-objs := libxdma.o xdma_sgdma.o hermes_mod.o
+	$(TARGET_MODULE)-objs := libxdma.o xdma_sgdma.o hermes_mod.o hermes_cdev.o
 	obj-m := $(TARGET_MODULE).o
 else
 	BUILDSYSTEM_DIR:=/lib/modules/$(shell uname -r)/build
