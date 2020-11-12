@@ -33,6 +33,7 @@
 #include "libxdma.h"
 #include "hermes_mod.h"
 #include "xdma_cdev.h"
+#include "hermes_cdev.h"
 #include "version.h"
 
 #define DRV_MODULE_NAME		"hermes"
@@ -144,6 +145,10 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (rv)
 		goto err_out;
 
+	rv = hermes_cdev_create(hpdev);
+	if (rv)
+		goto err_out;
+
 	dev_set_drvdata(&pdev->dev, hpdev);
 
 	return 0;
@@ -165,6 +170,7 @@ static void remove_one(struct pci_dev *pdev)
 	if (!hpdev)
 		return;
 
+	hermes_cdev_destroy(hpdev);
 	pr_info("pdev 0x%p, xdev 0x%p, 0x%p.\n",
 		pdev, hpdev, hpdev->xdev);
 	hpdev_free(hpdev);
@@ -286,6 +292,10 @@ static int __init hermes_mod_init(void)
 	if (rv < 0)
 		return rv;
 
+	rv = hermes_cdev_init();
+	if (rv < 0)
+		return rv;
+
 	return pci_register_driver(&pci_driver);
 }
 
@@ -295,6 +305,7 @@ static void __exit hermes_mod_exit(void)
 	dbg_init("pci_unregister_driver.\n");
 	pci_unregister_driver(&pci_driver);
 	xdma_cdev_cleanup();
+	hermes_cdev_cleanup();
 }
 
 module_init(hermes_mod_init);

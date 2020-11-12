@@ -74,11 +74,20 @@ struct xdma_cdev {
 	spinlock_t lock;
 };
 
+struct hermes_dev {
+	struct device dev;
+	struct pci_dev *pdev;
+	struct hermes_pci_dev *hpdev;
+	struct cdev cdev;
+	int id;
+};
+
 /* XDMA PCIe device specific book-keeping */
 struct hermes_pci_dev {
 	unsigned long magic;		/* structure ID for sanity checks */
 	struct pci_dev *pdev;	/* pci device struct from probe() */
 	struct xdma_dev *xdev;
+	struct hermes_dev *hdev;
 	int major;		/* major number */
 	int instance;		/* instance number */
 	int c2h_channel_max;
