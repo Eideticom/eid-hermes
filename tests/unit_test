@@ -1,8 +1,131 @@
 #!/usr/bin/env python3
 
+import ctypes as c
+import fcntl
 import os
-import random
 import unittest
+
+class HermesIoctlArgp(c.Structure):
+    _fields_ = [
+        ('len', c.c_uint),
+        ('prog', c.c_char_p),
+        ('flags', c.c_uint),
+    ]
+
+class DriverTests(unittest.TestCase):
+    dev = '/dev/hermes0'
+    ehpslot = 16
+    ehpssze = 1024 * 1024
+    ehdssze = 1024 * 1024
+    prog = b'x' * 4096
+    payloadSmall  = b'z' * 256
+    payloadMedium = b'z' * 4096
+    payloadLarge  = b'z' * ehdssze
+    HERMES_DOWNLOAD_PROG_IOCTL = 0x40184850
+
+    def setUp(self):
+        try:
+            self.hermes = os.open(self.dev, os.O_RDWR)
+        except FileNotFoundError:
+            self.skipTest('Could not open ' + self.dev)
+
+    def tearDown(self):
+        os.close(self.hermes)
+
+    def _genIoctlArgp(self, prog, flags=0):
+        return HermesIoctlArgp(len(prog), c.c_char_p(prog), flags)
+
+    def _sendProgram(self, prog=prog, fd=None, flags=0, cmd=HERMES_DOWNLOAD_PROG_IOCTL):
+        progArgp = self._genIoctlArgp(prog, flags)
+        if fd:
+            ret = fcntl.ioctl(fd, cmd, progArgp)
+        else:
+            ret = fcntl.ioctl(self.hermes, cmd, progArgp)
+        self.assertEqual(ret, 0)
+
+    def _testWriteRead(self, payload, woff=0, roff=0, rsize=None):
+        if not rsize:
+            rsize = len(payload)
+        self._sendProgram()
+        ret = os.pwrite(self.hermes, payload, woff)
+        self.assertEqual(ret, len(payload))
+        data = os.pread(self.hermes, rsize, roff)
+        self.assertEqual(len(data), rsize)
+
+    def testSendProgram(self):
+        self._sendProgram()
+
+    def testLargeProgram(self):
+        prog = b'x' * self.ehpssze * 2
+        with self.assertRaisesRegex(OSError, "Invalid argument"):
+            self._sendProgram(prog)
+
+    def testTooManyPrograms(self):
+        fds = []
+        for i in range(self.ehpslot + 1):
+            fds += [open('/dev/hermes0', 'r+b', buffering=0)]
+            if i < self.ehpslot:
+                ret = self._sendProgram(fd=fds[i])
+            else:
+                with self.assertRaisesRegex(OSError, "No space left on device"):
+                    self._sendProgram(fd=fds[i])
+
+    def testInvalidFlags(self):
+        with self.assertRaisesRegex(OSError, "Invalid argument"):
+            self._sendProgram(flags=1)
+
+    def testInvalidIoctlNum(self):
+        with self.assertRaisesRegex(OSError, "Invalid argument"):
+            self._sendProgram(cmd=0)
+
+    def testWriteReadZero(self):
+        payload = b''
+        self._testWriteRead(payload)
+
+    def testWriteReadSmall(self):
+        self._testWriteRead(self.payloadSmall)
+
+    def testWriteReadMedium(self):
+        self._testWriteRead(self.payloadMedium)
+
+    def testWriteReadLarge(self):
+        self._testWriteRead(self.payloadLarge)
+
+    def testWriteOffset(self):
+        self._testWriteRead(self.payloadSmall, woff=1024)
+
+    def testReadOffset(self):
+        self._testWriteRead(self.payloadSmall, roff=1024)
+
+    def testWriteTooLarge(self):
+        payload = b'x' * self.ehdssze * 2
+        with self.assertRaisesRegex(OSError, "Invalid argument"):
+            self._testWriteRead(payload)
+
+    def testReadTooLarge(self):
+        with self.assertRaisesRegex(AssertionError, "1048576 != 2097152"):
+            self._testWriteRead(self.payloadSmall, rsize=2*self.ehdssze)
+
+    def testWriteBeforeProg(self):
+        with self.assertRaisesRegex(OSError, "File descriptor in bad state"):
+            os.write(self.hermes, self.payloadSmall)
+
+    def testReadBeforeProg(self):
+        with self.assertRaisesRegex(OSError, "No data available"):
+            os.read(self.hermes, 64)
+
+    def testReadBeforeWrite(self):
+        with self.assertRaisesRegex(OSError, "No data available"):
+            self._sendProgram()
+            os.read(self.hermes, 64)
+
+    def testWriteLargeOffset(self):
+        with self.assertRaisesRegex(OSError, "Invalid argument"):
+            self._testWriteRead(self.payloadSmall, woff=self.ehdssze)
+
+    def testReadLargeOffset(self):
+        with self.assertRaisesRegex(AssertionError, "0 != 256"):
+            self._testWriteRead(self.payloadSmall, roff=self.ehdssze)
 
 if __name__ == '__main__':
     unittest.TestProgram(buffer=True, catchbreak=True)
