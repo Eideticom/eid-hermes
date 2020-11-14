@@ -1,8 +1,34 @@
 #!/usr/bin/env python3
 
+import ctypes as c
+import enum
+import fcntl
 import os
 import random
+import struct
 import unittest
+
+class HermesOpcodes(enum.IntEnum):
+    REQ_SLOT = 0x00
+    REL_SLOT = 0x01
+    WRITE    = 0x10
+    READ     = 0x11
+    RUN_PROG = 0x80
+
+class HermesSlotTypes(enum.IntEnum):
+    PROG_SLOT = 0x00
+    DATA_SLOT = 0x01
+
+class HermesStatus(enum.IntEnum):
+    HERMES_STATUS_SUCCESS       = 0x00
+    HERMES_STATUS_NO_SPACE      = 0x01
+    HERMES_STATUS_INV_PROG_SLOT = 0x02
+    HERMES_STATUS_INV_DATA_SLOT = 0x03
+    HERMES_STATUS_INV_SLOT_TYPE = 0x04
+    HERMES_STATUS_INV_ADDR      = 0x05
+    HERMES_STATUS_INV_OPCODE    = 0x06
+    HERMES_STATUS_EBPF_ERROR    = 0x07
+    HERMES_GENERIC_ERROR        = 0xFF
 
 def randomBytes(count, seed=1):
     random.seed(seed)
@@ -54,6 +80,166 @@ class XdmaTests(unittest.TestCase):
     def testXDMA_large(self):
         # DMA descriptors will cross a 4K address boundary
         self._testXDMA(1024*1024)
+
+class CmdReq(c.Structure):
+    _fields_ = [
+        ('opcode', c.c_byte),
+        ('rsv0', c.c_byte),
+        ('cid', c.c_short),
+        ('rsv1', c.c_uint),
+        ('cmd_specific', 6 * c.c_uint),
+    ]
+
+    @classmethod
+    def gen_cmd_specific(cls, cmd_spc):
+        assert(len(cmd_spc) == 6)
+        type = c.c_uint * 6
+        return type(*cmd_spc)
+
+class CmdRes(c.Structure):
+    _fields_ = [
+        ('cid', c.c_short),
+        ('status', c.c_byte),
+        ('rsv', 5 * c.c_byte),
+        ('cmd_specific', 2 * c.c_uint),
+    ]
+
+    @classmethod
+    def gen_cmd_specific(cls, cmd_spc):
+        assert(len(cmd_spc) == 2)
+        type = c.c_uint * 2
+        return type(*cmd_spc)
+
+    @classmethod
+    def gen_rsv(cls):
+        type = c.c_byte * 5
+        return type(0, 0, 0, 0, 0)
+
+class CmdReqRes(c.Structure):
+    _fields_ = [
+        ('req', CmdReq),
+        ('res', CmdRes),
+    ]
+
+class DriverTests(unittest.TestCase):
+    dev = '/dev/hermes0'
+    cmd_req = struct.Struct('<BxH4x6L')
+    cmd_res = struct.Struct('<HB5x2L')
+    cmd_req_res = struct.Struct('<BxH4x6LHB5x2L')
+
+    def setUp(self):
+        try:
+            self.hermes = open(self.dev, 'r+b', buffering=0)
+        except FileNotFoundError:
+            self.skipTest('Could not open ' + self.dev)
+
+    def tearDown(self):
+        self.hermes.close()
+
+    def _doReadWrite(self, opcode, slotType, slotID, buf):
+        bufPtr = c.addressof(buf)
+        bufLen = buf._length_
+        bufAddr = [bufPtr & 0xFFFFFFFF, bufPtr >> 32]
+        cmd_specific = [(slotID << 8) | slotType, *bufAddr, bufLen, 0x00, 0x00]
+
+        cmd = self.genCmd(opcode=opcode, cmd_specific=cmd_specific)
+
+        fcntl.ioctl(self.hermes, 0, cmd)
+        return cmd.res
+
+    def _doWrite(self, slotType, slotID, addr):
+        return self._doReadWrite(HermesOpcodes.WRITE, slotType, slotID, addr)
+
+    def _doRead(self, slotType, slotID, addr):
+        return self._doReadWrite(HermesOpcodes.READ, slotType, slotID, addr)
+
+    def _testReadWrite(self, slotType, dataLen):
+        ptr = c.c_byte * dataLen
+        src = ptr(*randomBytes(dataLen, seed=1))
+        dst = ptr(*randomBytes(dataLen, seed=2))
+        self.assertNotEqual(list(src), list(dst))
+
+        res = self._doWrite(slotType, 0x00, src)
+        self.assertEqual(res.status, HermesStatus.HERMES_STATUS_SUCCESS)
+        self.assertEqual(res.cmd_specific[0], dataLen)
+
+        res = self._doRead(slotType, 0x00, dst)
+        self.assertEqual(res.status, HermesStatus.HERMES_STATUS_SUCCESS)
+        self.assertEqual(res.cmd_specific[0], dataLen)
+
+        self.assertEqual(list(src), list(dst))
+
+    def genCmd(self, opcode=0x00, cid=0x00, cmd_specific=[0x00]*6):
+        req = CmdReq(opcode, 0, cid, 0, CmdReq.gen_cmd_specific(cmd_specific))
+        res = CmdRes(0, 0, CmdRes.gen_rsv(), CmdRes.gen_cmd_specific([0, 0]))
+        return CmdReqRes(req, res)
+
+    def testInvalidOpcode(self):
+        cmd = self.genCmd(opcode=0xFF)
+        fcntl.ioctl(self.hermes, 0, cmd)
+
+    def _testInvalidSlot(self, slotType, slotID, expectedStatus):
+        cmd = self.genCmd(opcode=HermesOpcodes.WRITE,
+                cmd_specific=[(slotID << 8) | slotType] + [0]*5)
+        fcntl.ioctl(self.hermes, 0, cmd)
+        self.assertEqual(cmd.res.status, expectedStatus)
+
+    def testInvalidProgramSlotID(self):
+        self._testInvalidSlot(HermesSlotTypes.PROG_SLOT, 0xFF,
+                HermesStatus.HERMES_STATUS_INV_PROG_SLOT)
+
+    def testInvalidDataSlotID(self):
+        self._testInvalidSlot(HermesSlotTypes.DATA_SLOT, 0xFF,
+                HermesStatus.HERMES_STATUS_INV_DATA_SLOT)
+
+    def testInvalidSlotType(self):
+        self._testInvalidSlot(0xFF, 0x0,
+                HermesStatus.HERMES_STATUS_INV_SLOT_TYPE)
+
+    def _testInvalidDMALength(self, slotType):
+        dataLen = 2 * 1024 * 1024 # assumes slots are 1MB
+        ptr = c.c_byte * dataLen
+        src = ptr(*([0] * dataLen))
+
+        res = self._doRead(slotType, 0x00, src)
+        self.assertEqual(res.status, HermesStatus.HERMES_STATUS_NO_SPACE)
+
+    def testInvalidDMALengthProgram(self):
+        self._testInvalidDMALength(HermesSlotTypes.PROG_SLOT)
+
+    def testInvalidDMALengthData(self):
+        self._testInvalidDMALength(HermesSlotTypes.PROG_SLOT)
+
+    def testInvalidDMAAddr(self):
+        cmd_specific = [0, 0, 0, 1, 0x00, 0x00] # dataLen == 1
+
+        cmd = self.genCmd(HermesOpcodes.WRITE, cmd_specific=cmd_specific)
+
+        fcntl.ioctl(self.hermes, 0, cmd)
+        self.assertEqual(cmd.res.status, HermesStatus.HERMES_STATUS_INV_ADDR)
+
+    def testZeroDMALength(self):
+        cmd = self.genCmd(HermesOpcodes.WRITE)
+        fcntl.ioctl(self.hermes, 0, cmd)
+        self.assertEqual(cmd.res.status & 0xFF, HermesStatus.HERMES_GENERIC_ERROR)
+
+    def testReadWriteDataSmall(self):
+        self._testReadWrite(HermesSlotTypes.DATA_SLOT, 256)
+
+    def testReadWriteDataMedium(self):
+        self._testReadWrite(HermesSlotTypes.DATA_SLOT, 16*1024)
+
+    def testReadWriteDataLarge(self):
+        self._testReadWrite(HermesSlotTypes.DATA_SLOT, 1024*1024)
+
+    def testReadWriteProgramSmall(self):
+        self._testReadWrite(HermesSlotTypes.PROG_SLOT, 256)
+
+    def testReadWriteProgramMedium(self):
+        self._testReadWrite(HermesSlotTypes.PROG_SLOT, 16*1024)
+
+    def testReadWriteProgramLarge(self):
+        self._testReadWrite(HermesSlotTypes.PROG_SLOT, 1024*1024)
 
 if __name__ == '__main__':
     unittest.TestProgram(buffer=True, catchbreak=True)
