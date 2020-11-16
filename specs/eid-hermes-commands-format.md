@@ -88,8 +88,11 @@ The following `Status` of Command Responses are defined:
 | 0x01   | Not enough space     |
 | 0x02   | Invalid Program Slot |
 | 0x03   | Invalid Data Slot    |
-| 0x04   | Invalid Address      |
-| 0x05   | eBPF error           |
+| 0x04   | Invalid Slot Type    |
+| 0x05   | Invalid Address      |
+| 0x06   | Invalid Opcode       |
+| 0x07   | eBPF error           |
+| 0xFF   | Other error          |
 
 **Table 3: Status**
 
@@ -192,9 +195,11 @@ of actual bytes transferred is reported on the Command Response.
 | Status | Description                                                    |
 |--------|----------------------------------------------------------------|
 | 0x00   | Success. Does not guarantee that all data has been transferred |
+| 0x01   | DMA size is greater than slot size                             |
 | 0x02   | Requested program slot does not exist or is not allocated      |
 | 0x03   | Requested data slot does not exist or is not allocated         |
-| 0x04   | Invalid source address                                         |
+| 0x04   | Invalid slot type                                              |
+| 0x05   | Invalid source address                                         |
 
 **Table 13: Write to Slot status codes**
 
@@ -217,17 +222,20 @@ of actual bytes transferred is reported on the Command Response.
 
 **Table 14: Read to Slot Command Request**
 
-| Bytes | Description          |
-|-------|----------------------|
-| 11:08 | Number of bytes read |
+| Bytes | Description                                             |
+|-------|---------------------------------------------------------|
+| 11:08 | Number of bytes read. Only valid when Status is 0x00    |
 
 **Table 15: Read from Slot Command Response**
 
 | Status | Description                                                    |
 |--------|----------------------------------------------------------------|
 | 0x00   | Success. Does not guarantee that all data has been transferred |
+| 0x01   | DMA size is greater than slot size                             |
+| 0x02   | Requested program slot does not exist or is not allocated      |
 | 0x03   | Requested data slot does not exist or is not allocated         |
-| 0x04   | Invalid destination address                                    |
+| 0x04   | Invalid slot type                                              |
+| 0x05   | Invalid destination address                                    |
 
 **Table 16: Read from Slot status codes**
 
