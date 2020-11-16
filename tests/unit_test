@@ -9,27 +9,39 @@ class XdmaTests(unittest.TestCase):
     c2h_chnl = '/dev/xdma0_c2h_0'
     dram_offset = 0x10000000
 
+    def setUp(self):
+        try:
+            self.h2c = open(self.h2c_chnl, 'wb', buffering=0)
+        except FileNotFoundError:
+            self.skipTest('Could not open ' + self.h2c_chnl)
+
+        try:
+            self.c2h = open(self.c2h_chnl, 'rb', buffering=0)
+        except FileNotFoundError:
+            self.skipTest('Could not open ' + self.c2h_chnl)
+
+    def tearDown(self):
+        self.h2c.close()
+        self.c2h.close()
+
     def randomBytes(self, count, seed=1):
         random.seed(seed)
         return bytes(random.randint(0, 255) for i in range(count))
 
     def _testXDMA(self, len):
         src = self.randomBytes(len)
-        with open(self.h2c_chnl, 'wb') as h2c, \
-                open(self.c2h_chnl, 'rb') as c2h:
+        self.h2c.seek(self.dram_offset)
+        write = self.h2c.write(src)
+        if len == -1:
+            self.fail('Failed to write to ' + self.h2c_chnl)
 
-            h2c.seek(self.dram_offset)
-            write = h2c.write(src)
-            if len == -1:
-                self.fail('Failed to write to ' + self.h2c_chnl)
+        self.c2h.seek(self.dram_offset)
+        dst = self.c2h.read(len)
+        if dst is None:
+            self.fail('Failed to read from ' + self.c2h_chnl)
 
-            c2h.seek(self.dram_offset)
-            dst = c2h.read(len)
-            if dst is None:
-                self.fail('Failed to read from ' + self.c2h_chnl)
-
-            if dst != src:
-                self.fail('Data mismatch')
+        if dst != src:
+            self.fail('Data mismatch')
 
     def testXDMA_small(self):
         # uses a single DMA descriptor

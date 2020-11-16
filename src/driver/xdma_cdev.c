@@ -26,6 +26,11 @@
 
 #include "xdma_cdev.h"
 
+/* Module Parameters */
+unsigned int create_xdma_devices = 0;
+module_param(create_xdma_devices, uint, 0644);
+MODULE_PARM_DESC(create_xdma_devices, "Set 1 to create XDMA sysfs devices, 0 to disable (default)");
+
 static struct class *g_xdma_class;
 
 struct kmem_cache *cdev_cache;
@@ -235,6 +240,9 @@ static int create_sys_device(struct xdma_cdev *xcdev, enum cdev_type type)
 
 static int destroy_xcdev(struct xdma_cdev *cdev)
 {
+	if (!create_xdma_devices)
+		return 0;
+
 	if (!cdev) {
 		pr_warn("cdev NULL.\n");
 		return -EINVAL;
@@ -303,6 +311,9 @@ static int create_xcdev(struct hermes_pci_dev *hpdev, struct xdma_cdev *xcdev,
 	rv = config_kobject(xcdev, type);
 	if (rv < 0)
 		return rv;
+
+	if (!create_xdma_devices)
+		return 0;
 
 	switch (type) {
 	case CHAR_XVC:
