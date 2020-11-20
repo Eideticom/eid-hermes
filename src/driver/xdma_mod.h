@@ -84,13 +84,9 @@ struct xdma_pci_dev {
 	unsigned long magic;		/* structure ID for sanity checks */
 	struct pci_dev *pdev;	/* pci device struct from probe() */
 	struct xdma_dev *xdev;
-	int major;		/* major number */
-	int instance;		/* instance number */
 	int c2h_channel_max;
 	int h2c_channel_max;
 
-	unsigned int flags;
-	/* character device structures */
 	struct xdma_channel xdma_c2h_chnl[XDMA_CHANNEL_NUM_MAX];
 	struct xdma_channel xdma_h2c_chnl[XDMA_CHANNEL_NUM_MAX];
 };

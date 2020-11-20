@@ -31,7 +31,6 @@
 /* include early, to verify it depends only on the headers above */
 #include "libxdma.h"
 #include "xdma_mod.h"
-#include "xdma_cdev.h"
 #include "xdma_sgdma.h"
 #include "version.h"
 
@@ -123,8 +122,6 @@ static void xpdev_free(struct xdma_pci_dev *xpdev)
 {
 	struct xdma_dev *xdev = xpdev->xdev;
 
-	pr_info("xpdev 0x%p, destroy_interfaces, xdev 0x%p.\n", xpdev, xdev);
-	xpdev_destroy_interfaces(xpdev);
 	xpdev->xdev = NULL;
 	pr_info("xpdev 0x%p, xdev 0x%p xdma_device_close.\n", xpdev, xdev);
 	xdma_device_close(xpdev->pdev, xdev);
@@ -336,18 +333,12 @@ static struct pci_driver pci_driver = {
 
 static int __init xdma_mod_init(void)
 {
-	int rv;
-
 	pr_info("%s", version);
 
 	if (desc_blen_max > XDMA_DESC_BLEN_MAX)
 		desc_blen_max = XDMA_DESC_BLEN_MAX;
 	pr_info("desc_blen_max: 0x%x/%u, sgdma_timeout: %u sec.\n",
 		desc_blen_max, desc_blen_max, sgdma_timeout);
-
-	rv = xdma_cdev_init();
-	if (rv < 0)
-		return rv;
 
 	return pci_register_driver(&pci_driver);
 }
@@ -357,7 +348,6 @@ static void __exit xdma_mod_exit(void)
 	/* unregister this driver from the PCI bus driver */
 	dbg_init("pci_unregister_driver.\n");
 	pci_unregister_driver(&pci_driver);
-	xdma_cdev_cleanup();
 }
 
 module_init(xdma_mod_init);
