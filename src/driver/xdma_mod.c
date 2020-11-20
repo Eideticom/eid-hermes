@@ -202,7 +202,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	xpdev->xdev = hndl;
 
-	rv = xpdev_create_interfaces(xpdev);
+	rv = xpdev_init_channels(xpdev);
 	if (rv)
 		goto err_out;
 

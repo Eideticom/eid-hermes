@@ -61,6 +61,11 @@
 extern unsigned int desc_blen_max;
 extern unsigned int sgdma_timeout;
 
+struct xdma_channel {
+	struct xdma_dev *xdev;
+	struct xdma_engine *engine;	/* engine instance, if needed */
+};
+
 struct xdma_cdev {
 	unsigned long magic;		/* structure ID for sanity checks */
 	struct xdma_pci_dev *xpdev;
@@ -86,8 +91,8 @@ struct xdma_pci_dev {
 
 	unsigned int flags;
 	/* character device structures */
-	struct xdma_cdev sgdma_c2h_cdev[XDMA_CHANNEL_NUM_MAX];
-	struct xdma_cdev sgdma_h2c_cdev[XDMA_CHANNEL_NUM_MAX];
+	struct xdma_channel xdma_c2h_chnl[XDMA_CHANNEL_NUM_MAX];
+	struct xdma_channel xdma_h2c_chnl[XDMA_CHANNEL_NUM_MAX];
 };
 
 struct xdma_io_cb {

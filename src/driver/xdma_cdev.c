@@ -311,38 +311,17 @@ unregister_region:
 
 void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev)
 {
-	int i = 0;
-	int rv;
-
-	if (xpdev_flag_test(xpdev, XDF_CDEV_SG)) {
-		/* iterate over channels */
-		for (i = 0; i < xpdev->h2c_channel_max; i++) {
-			/* remove SG DMA character device */
-			rv = destroy_xcdev(&xpdev->sgdma_h2c_cdev[i]);
-			if (rv < 0)
-				pr_err("Failed to destroy h2c xcdev %d error :0x%x\n",
-						i, rv);
-		}
-		for (i = 0; i < xpdev->c2h_channel_max; i++) {
-			rv = destroy_xcdev(&xpdev->sgdma_c2h_cdev[i]);
-			if (rv < 0)
-				pr_err("Failed to destroy c2h xcdev %d error 0x%x\n",
-						i, rv);
-		}
-	}
-
 	if (xpdev->major)
 		unregister_chrdev_region(
 				MKDEV(xpdev->major, XDMA_MINOR_BASE),
 				XDMA_MINOR_COUNT);
 }
 
-int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
+int xpdev_init_channels(struct xdma_pci_dev *xpdev)
 {
 	struct xdma_dev *xdev = xpdev->xdev;
 	struct xdma_engine *engine;
 	int i;
-	int rv = 0;
 
 	/* iterate over channels */
 	for (i = 0; i < xpdev->h2c_channel_max; i++) {
@@ -351,12 +330,8 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
 		if (engine->magic != MAGIC_ENGINE)
 			continue;
 
-		rv = create_xcdev(xpdev, &xpdev->sgdma_h2c_cdev[i], i, engine,
-				 CHAR_XDMA_H2C);
-		if (rv < 0) {
-			pr_err("create char h2c %d failed, %d.\n", i, rv);
-			goto fail;
-		}
+		xpdev->xdma_h2c_chnl[i].engine = engine;
+		xpdev->xdma_h2c_chnl[i].xdev = xdev;
 	}
 
 	for (i = 0; i < xpdev->c2h_channel_max; i++) {
@@ -365,21 +340,11 @@ int xpdev_create_interfaces(struct xdma_pci_dev *xpdev)
 		if (engine->magic != MAGIC_ENGINE)
 			continue;
 
-		rv = create_xcdev(xpdev, &xpdev->sgdma_c2h_cdev[i], i, engine,
-				 CHAR_XDMA_C2H);
-		if (rv < 0) {
-			pr_err("create char c2h %d failed, %d.\n", i, rv);
-			goto fail;
-		}
+		xpdev->xdma_c2h_chnl[i].engine = engine;
+		xpdev->xdma_c2h_chnl[i].xdev = xdev;
 	}
-	xpdev_flag_set(xpdev, XDF_CDEV_SG);
 
 	return 0;
-
-fail:
-	rv = -1;
-	xpdev_destroy_interfaces(xpdev);
-	return rv;
 }
 
 int xdma_cdev_init(void)

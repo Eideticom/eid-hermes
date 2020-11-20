@@ -33,7 +33,7 @@
 #include <linux/vmalloc.h>
 
 #include "libxdma.h"
-#include "cdev_sgdma.h"
+#include "xdma_sgdma.h"
 
 /* Module Parameters */
 unsigned int desc_blen_max = XDMA_DESC_BLEN_MAX;

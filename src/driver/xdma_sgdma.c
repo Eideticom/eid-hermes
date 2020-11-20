@@ -27,7 +27,7 @@
 #include <asm/cacheflush.h>
 #include "libxdma.h"
 #include "xdma_cdev.h"
-#include "cdev_sgdma.h"
+#include "xdma_sgdma.h"
 
 /* Module Parameters */
 unsigned int sgdma_timeout = 10;
@@ -63,21 +63,6 @@ static loff_t char_sgdma_llseek(struct file *file, loff_t off, int whence)
 
 	return newpos;
 }
-
-/* char_sgdma_read_write() -- Read from or write to the device
- *
- * @buf userspace buffer
- * @count number of bytes in the userspace buffer
- * @pos byte-address in device
- * @dir_to_device If !0, a write to the device is performed
- *
- * Iterate over the userspace buffer, taking at most 255 * PAGE_SIZE bytes for
- * each DMA transfer.
- *
- * For each transfer, get the user pages, build a sglist, map, build a
- * descriptor table. submit the transfer. wait for the interrupt handler
- * to wake us on completion.
- */
 
 static int check_transfer_align(struct xdma_engine *engine,
 	const char __user *buf, size_t count, loff_t pos, int sync)
@@ -147,7 +132,7 @@ static inline void xdma_io_cb_release(struct xdma_io_cb *cb)
 	memset(cb, 0, sizeof(*cb));
 }
 
-static void char_sgdma_unmap_user_buf(struct xdma_io_cb *cb, bool write)
+static void xdma_channel_unmap_user_buf(struct xdma_io_cb *cb, bool write)
 {
 	int i;
 
@@ -172,7 +157,7 @@ static void char_sgdma_unmap_user_buf(struct xdma_io_cb *cb, bool write)
 	cb->pages = NULL;
 }
 
-static int char_sgdma_map_user_buf_to_sgl(struct xdma_io_cb *cb, bool write)
+static int xdma_channel_map_user_buf_to_sgl(struct xdma_io_cb *cb, bool write)
 {
 	struct sg_table *sgt = &cb->sgt;
 	unsigned long len = cb->len;
@@ -248,12 +233,27 @@ static int char_sgdma_map_user_buf_to_sgl(struct xdma_io_cb *cb, bool write)
 	return 0;
 
 err_out:
-	char_sgdma_unmap_user_buf(cb, write);
+	xdma_channel_unmap_user_buf(cb, write);
 
 	return rv;
 }
 
-static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
+/* xdma_channel_read_write() -- Read from or write to the device
+ *
+ * @buf userspace buffer
+ * @count number of bytes in the userspace buffer
+ * @pos byte-address in device
+ * @dir_to_device If !0, a write to the device is performed
+ *
+ * Iterate over the userspace buffer, taking at most 255 * PAGE_SIZE bytes for
+ * each DMA transfer.
+ *
+ * For each transfer, get the user pages, build a sglist, map, build a
+ * descriptor table. submit the transfer. wait for the interrupt handler
+ * to wake us on completion.
+ */
+
+static ssize_t xdma_channel_read_write(struct file *file, const char __user *buf,
 		size_t count, loff_t *pos, bool write)
 {
 	int rv;
@@ -289,13 +289,13 @@ static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
 	memset(&cb, 0, sizeof(struct xdma_io_cb));
 	cb.buf = (char __user *)buf;
 	cb.len = count;
-	rv = char_sgdma_map_user_buf_to_sgl(&cb, write);
+	rv = xdma_channel_map_user_buf_to_sgl(&cb, write);
 	if (rv < 0)
 		return rv;
 
 	res = xdma_xfer_submit(xdev, engine->channel, write, *pos, &cb.sgt,
 				0, sgdma_timeout * 1000);	
-	char_sgdma_unmap_user_buf(&cb, write);
+	xdma_channel_unmap_user_buf(&cb, write);
 
 	return res;
 }
@@ -304,13 +304,13 @@ static ssize_t char_sgdma_read_write(struct file *file, const char __user *buf,
 static ssize_t char_sgdma_write(struct file *file, const char __user *buf,
 				size_t count, loff_t *pos)
 {
-	return char_sgdma_read_write(file, (char *)buf, count, pos, 1);
+	return xdma_channel_read_write(file, (char *)buf, count, pos, 1);
 }
 
 static ssize_t char_sgdma_read(struct file *file, char __user *buf,
 				size_t count, loff_t *pos)
 {
-	return char_sgdma_read_write(file, (char *)buf, count, pos, 0);
+	return xdma_channel_read_write(file, (char *)buf, count, pos, 0);
 }
 
 static int ioctl_do_perf_start(struct xdma_engine *engine, unsigned long arg)
