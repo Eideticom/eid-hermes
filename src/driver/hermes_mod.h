@@ -87,6 +87,8 @@ struct hermes_dev {
 	int id;
 
 	struct hermes_cfg cfg;
+	struct ida prog_slots;
+	struct ida data_slots;
 };
 
 /* XDMA PCIe device specific book-keeping */
