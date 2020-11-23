@@ -118,6 +118,7 @@ int xcdev_check(const char *fname, struct xdma_cdev *xcdev, bool check_engine)
 	return 0;
 }
 
+
 int char_open(struct inode *inode, struct file *file)
 {
 	struct xdma_cdev *xcdev;
@@ -315,36 +316,6 @@ void xpdev_destroy_interfaces(struct xdma_pci_dev *xpdev)
 		unregister_chrdev_region(
 				MKDEV(xpdev->major, XDMA_MINOR_BASE),
 				XDMA_MINOR_COUNT);
-}
-
-int xpdev_init_channels(struct xdma_pci_dev *xpdev)
-{
-	struct xdma_dev *xdev = xpdev->xdev;
-	struct xdma_engine *engine;
-	int i;
-
-	/* iterate over channels */
-	for (i = 0; i < xpdev->h2c_channel_max; i++) {
-		engine = &xdev->engine_h2c[i];
-
-		if (engine->magic != MAGIC_ENGINE)
-			continue;
-
-		xpdev->xdma_h2c_chnl[i].engine = engine;
-		xpdev->xdma_h2c_chnl[i].xdev = xdev;
-	}
-
-	for (i = 0; i < xpdev->c2h_channel_max; i++) {
-		engine = &xdev->engine_c2h[i];
-
-		if (engine->magic != MAGIC_ENGINE)
-			continue;
-
-		xpdev->xdma_c2h_chnl[i].engine = engine;
-		xpdev->xdma_c2h_chnl[i].xdev = xdev;
-	}
-
-	return 0;
 }
 
 int xdma_cdev_init(void)

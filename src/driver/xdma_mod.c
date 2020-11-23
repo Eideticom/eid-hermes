@@ -32,6 +32,7 @@
 #include "libxdma.h"
 #include "xdma_mod.h"
 #include "xdma_cdev.h"
+#include "xdma_sgdma.h"
 #include "version.h"
 
 #define DRV_MODULE_NAME		"xdma"

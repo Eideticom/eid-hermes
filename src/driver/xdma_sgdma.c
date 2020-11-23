@@ -34,6 +34,36 @@ unsigned int sgdma_timeout = 10;
 module_param(sgdma_timeout, uint, 0644);
 MODULE_PARM_DESC(sgdma_timeout, "timeout in seconds for sgdma, default is 10 sec.");
 
+int xpdev_init_channels(struct xdma_pci_dev *xpdev)
+{
+	struct xdma_dev *xdev = xpdev->xdev;
+	struct xdma_engine *engine;
+	int i;
+
+	/* iterate over channels */
+	for (i = 0; i < xpdev->h2c_channel_max; i++) {
+		engine = &xdev->engine_h2c[i];
+
+		if (engine->magic != MAGIC_ENGINE)
+			continue;
+
+		xpdev->xdma_h2c_chnl[i].engine = engine;
+		xpdev->xdma_h2c_chnl[i].xdev = xdev;
+	}
+
+	for (i = 0; i < xpdev->c2h_channel_max; i++) {
+		engine = &xdev->engine_c2h[i];
+
+		if (engine->magic != MAGIC_ENGINE)
+			continue;
+
+		xpdev->xdma_c2h_chnl[i].engine = engine;
+		xpdev->xdma_c2h_chnl[i].xdev = xdev;
+	}
+
+	return 0;
+}
+
 /*
  * character device file operations for SG DMA engine
  */

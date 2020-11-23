@@ -26,7 +26,7 @@
 #define _XDMA_IOCALLS_POSIX_H_
 
 #include <linux/ioctl.h>
-
+#include "xdma_mod.h"
 
 #define IOCTL_XDMA_PERF_V1 (1)
 #define XDMA_ADDRMODE_MEMORY (0)
@@ -63,7 +63,7 @@ struct xdma_performance_ioctl {
 	uint64_t pending_count;
 };
 
-
+int xpdev_init_channels(struct xdma_pci_dev *xpdev);
 
 /* IOCTL codes */
 
