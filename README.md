@@ -59,14 +59,17 @@ The specification for eid-hermes is located in Markdown files in the
 * **[eid-hermes-commands-format.md][11]** - The list and format of commands
   that can be sent to an eid-hermes device or driver.
 
+* **[eid-hermes-dirver-interface.md][12]** - The interface provided by the
+  Hermes kernel driver.
+
 # Dependencies and host configuration
 
-Eid-hermes uses the [XDMA][12] kernel module for data transfer between the host
+Eid-hermes uses the [XDMA][13] kernel module for data transfer between the host
 and the device. That driver needs to be patched to accept the Hermes PCI
 device/vendor ID.
 
-To facilitate installation, an [Ansible][13] playbook is provided, which also
-installs some helper programs, such as [pcimem][14].
+To facilitate installation, an [Ansible][14] playbook is provided, which also
+installs some helper programs, such as [pcimem][15].
 
 To run it, first install ansible then run:
 
@@ -77,7 +80,7 @@ ansible-playbook hermes.yml -K
 
 # Testing
 
-We include unit tests on the [tests][15] directory. To run them:
+We include unit tests on the [tests][16] directory. To run them:
 
 ```
 sudo tests/unit_test
@@ -96,9 +99,9 @@ information.
 # Contributing
 
 Contributions in the form of pull-requests are most welcome. The
-upstream version of this repo is located at [this link][17]. Note that
+upstream version of this repo is located at [this link][18]. Note that
 only PGP signed commits will be accepted so please setup [PGP
-signing][18] in order to commit to this project.
+signing][19] in order to commit to this project.
 
 [1]: https://www.eideticom.com/
 [2]: https://github.com/iovisor/bpf-docs/blob/master/eBPF.md
@@ -111,10 +114,11 @@ signing][18] in order to commit to this project.
 [9]: specs/eid-hermes-theory-of-operation.md
 [10]: specs/eid-hermes-interface.md
 [11]: specs/eid-hermes-commands-format.md
-[12]: https://github.com/aws/aws-fpga/tree/master/sdk/linux_kernel_drivers/xdma
-[13]: https://www.ansible.com/
-[14]: https://github.com/billfarrow/pcimem
-[15]: tests/
-[16]: https://www.apache.org/licenses/LICENSE-2.0
-[17]: https://github.com/Eideticom/eid-hermes
-[18]: https://docs.github.com/en/github/authenticating-to-github/signing-commits
+[12]: specs/eid-hermes-driver-interface.md
+[13]: https://github.com/aws/aws-fpga/tree/master/sdk/linux_kernel_drivers/xdma
+[14]: https://www.ansible.com/
+[15]: https://github.com/billfarrow/pcimem
+[16]: tests/
+[17]: https://www.apache.org/licenses/LICENSE-2.0
+[18]: https://github.com/Eideticom/eid-hermes
+[19]: https://docs.github.com/en/github/authenticating-to-github/signing-commits
