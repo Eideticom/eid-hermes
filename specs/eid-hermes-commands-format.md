@@ -10,46 +10,45 @@ Note that there are two types of command interfaces:
 - between user and driver
 - between host and device
 
-Some commands are defined for both interfaces and have the same specification.
-Other commands (those that involve memory transfer) are defined only for the
-user <-> driver interface and are marked as such in the rest of this document.
-These commands are converted by the Hermes driver to the use the [XDMA
-specification][1] for the host <-> device interface.
+This document refers to the host <-> device interface only. Driver
+implementations are free to define their own interface. For the interface of
+the kernel driver provided in this repository, see [here][1].
+
+Within the host <-> device interaction, there are two types of commands: those
+that involve memory transfer and those that don't. The former are handled by
+the [XDMA specification][2] and follow that interface, while the latter follow
+the interface defined in the rest of this document.
 
 ## Sample Execution
 
 The following diagram exemplifies a possible execution flow for Hermes. `*`
-edges denote commands that use the [XDMA specification][1] for the host <->
-device interface.
+edges denote commands that use the [XDMA specification][2].
 
-The user first send sends a `Request Slot` command to the Hermes driver to
-reserve space for a program, which forwards it to the device using the same
-specification. Then, the user sends the `Write to Slot` command to the driver,
-which converts it into an XDMA command and sends it to the device. This is
-repeated for the data slot.
+The host first send sends a `Request Slot` command to the device to reserve
+space for a program. Then, an XDMA write command can be sent to the device
+containing the program bytecode. This is repeated for the data slot.
 
-We can then execute the program using the `Run Program` command, which has the
-same specification for both interfaces. After its completion, the user may read
-back the result with the `Read Slot` command (which uses XDMA for host <->
-device). If there is more data to be processed, we can repeat the last
-commands, reusing the data slot.
+The host can then execute the program using the `Run Program` command,
+specifying the program and data slots to be used. After its completion, the
+host may read back the result with an XDMA Read command. If there is more data
+to be processed, we can repeat the last commands, reusing the data slot.
 
-Finally, the user releases the used program/data slots.
+Finally, the host releases the used program/data slots.
 
 ```
 +--------------+     *****************     +--------------+     *****************
-| Request slot |     * Write to Slot *     | Request slot |     * Write to Slot *
-|   (program)  | --> *   (program)   * --> |    (data)    | --> *    (data)     *<--+
-|              |     *               *     |              |     *               *   |
-| Opcode: 0x00 |     * Opcode: 0x10  *     | Opcode: 0x00 |     * Opcode: 0x10  *   |
+| Request slot |     *               *     | Request slot |     *               *
+|   (program)  | --> *  XDMA write   * --> |    (data)    | --> *  XDMA write   *<--+
+|              |     *   (program)   *     |              |     *    (data)     *   |
+| Opcode: 0x00 |     *               *     | Opcode: 0x00 |     *               *   |
 +--------------+     *****************     +--------------+     *****************   |
                                                                         |           |
                                                                         v           |
 +--------------+     +--------------+      ****************     +--------------+    |
-| Release slot |     | Release slot |      *   Read Slot  *     | Run program  |    |
-|  (program)   | <-- |    (data)    | <--  *    (data)    * <-- |              |    |
-|              |     |              |      *              *     | Opcode: 0x80 |    |
-| Opcode: 0x01 |     | Opcode: 0x01 |      * Opcode: 0x11 *     +--------------+    |
+| Release slot |     | Release slot |      *              *     | Run program  |    |
+|  (program)   | <-- |    (data)    | <--  *  XDMA read   * <-- |              |    |
+|              |     |              |      *    (data)    *     | Opcode: 0x80 |    |
+| Opcode: 0x01 |     | Opcode: 0x01 |      *              *     +--------------+    |
 +--------------+     +--------------+      ****************                         |
                                                    |                                |
                                                    +--------------------------------+
@@ -97,20 +96,17 @@ The following `Status` of Command Responses are defined:
 
 The following commands are defined for Hermes devices:
 
-| Opcode | Command        | Defined for user <-> driver | Defined for host <-> device |
-|--------|----------------|-----------------------------|-----------------------------|
-| 0x00   | Request Slot   | Y                           | Y                           |
-| 0x01   | Release Slot   | Y                           | Y                           |
-| 0x10   | Write to Slot  | Y                           | N (uses XDMA spec)          |
-| 0x11   | Read from Slot | Y                           | N (uses XDMA spec)          |
-| 0x80   | Run Program    | Y                           | Y                           |
+| Opcode | Command        |
+|--------|----------------|
+| 0x00   | Request Slot   |
+| 0x01   | Release Slot   |
+| 0x80   | Run Program    |
 
 **Table 4: List of commands**
 
 ### Request Slots (Opcode 0x00)
 
-This command can be used to reserve a program or data slot on the device. It is
-defined for both interfaces.
+This command can be used to reserve a program or data slot on the device.
 
 | Bytes | Description                           |
 |-------|---------------------------------------|
@@ -135,8 +131,7 @@ This command may return the following status:
 
 ### Release Slots (Opcode 0x01)
 
-This command can be used to release a program or data slot on the device. It is
-defined for both interfaces.
+This command can be used to release a program or data slot on the device.
 
 It is invalid to release a slot that is not allocated.
 
@@ -164,90 +159,22 @@ This command may return the following status:
 
 **Table 10: Release Slots status codes**
 
-### Write to Slot (Opcode 0x10)
-
-This command can be used to write to a program or data slot. The slot must have
-been previously requested with opcode 0x00 or this will fail. It is only
-defined for the user <-> driver interface.
-
-This command does not guarantee that all bytes will be transferred. The number
-of actual bytes transferred is reported on the Command Response.
-
-| Bytes | Description                               |
-|-------|-------------------------------------------|
-| 08    | Slot type (0x00: program, 0x01: data)     |
-| 09    | Slot ID                                   |
-| 11:10 | Reserved                                  |
-| 19:12 | Source Addr: the host address to transfer |
-| 23:20 | Data Length (in bytes)                    |
-
-**Table 11: Write to Slot Command Request**
-
-| Bytes | Description                                             |
-|-------|---------------------------------------------------------|
-| 11:08 | Number of bytes written. Only valid when Status is 0x00 |
-
-**Table 12: Write to Slot Command Response**
-
-| Status | Description                                                    |
-|--------|----------------------------------------------------------------|
-| 0x00   | Success. Does not guarantee that all data has been transferred |
-| 0x02   | Requested program slot does not exist or is not allocated      |
-| 0x03   | Requested data slot does not exist or is not allocated         |
-| 0x04   | Invalid source address                                         |
-
-**Table 13: Write to Slot status codes**
-
-### Read from Slot (Opcode 0x11)
-
-This command can be used to read from a slot. The slot must have been
-previously requested with opcode 0x00 or this will fail. It is only defined for
-the user <-> driver interface.
-
-This command does not guarantee that all bytes will be transferred. The number
-of actual bytes transferred is reported on the Command Response.
-
-| Bytes | Description                                                                   |
-|-------|-------------------------------------------------------------------------------|
-| 08    | Slot type (0x00: program, 0x01: data)                                         |
-| 09    | Slot ID                                                                       |
-| 11:10 | Reserved                                                                      |
-| 19:12 | Destination Addr: a pre-allocated host buffer where data should be written to |
-| 23:20 | Data Length (in bytes)                                                        |
-
-**Table 14: Read to Slot Command Request**
-
-| Bytes | Description          |
-|-------|----------------------|
-| 11:08 | Number of bytes read |
-
-**Table 15: Read from Slot Command Response**
-
-| Status | Description                                                    |
-|--------|----------------------------------------------------------------|
-| 0x00   | Success. Does not guarantee that all data has been transferred |
-| 0x03   | Requested data slot does not exist or is not allocated         |
-| 0x04   | Invalid destination address                                    |
-
-**Table 16: Read from Slot status codes**
-
 ### Run Program (Opcode 0x80)
 
 This command executes a pre-loaded eBPF program against a pre-loaded data slot.
-It is defined for both interfaces.
 
 | Bytes | Description     |
 |-------|-----------------|
 | 08    | Program Slot ID |
 | 09    | Data Slot ID    |
 
-**Table 18: Run Program Command Request**
+**Table 11: Run Program Command Request**
 
 | Bytes | Description                                                        |
 |-------|--------------------------------------------------------------------|
 | 11:08 | eBPF return code. Only valid when Status is 0x00 or Status is 0x05 |
 
-**Table 18: Run Program Command Response**
+**Table 12: Run Program Command Response**
 
 | Status | Description                                                           |
 |--------|-----------------------------------------------------------------------|
@@ -256,6 +183,7 @@ It is defined for both interfaces.
 | 0x03   | Requested data slot does not exist or is not allocated                |
 | 0x05   | An error was encountered during eBPF execution. Command Response bytes 11:08 is platform-specific. On QEMU, this corresponds to the error returned by ubpf_load() or ubpf_exec(). For the FPGA, it is TBD. |
 
-**Table 19: Run Program Slot status codes**
+**Table 13: Run Program Slot status codes**
 
-[1]: https://www.xilinx.com/support/documentation/ip_documentation/xdma/v4_1/pg195-pcie-dma.pdf
+[1]: eid-hermes-driver-interface.md
+[2]: https://www.xilinx.com/support/documentation/ip_documentation/xdma/v4_1/pg195-pcie-dma.pdf
