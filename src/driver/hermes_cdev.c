@@ -123,7 +123,7 @@ static int hermes_fsync(struct file *filp, loff_t start, loff_t end, int datasyn
 			.prog_len = env->prog_len,
 		},
 	};
-	int eng = 0, res;
+	int eng, res;
 	int64_t ebpf_ret;
 
 	if (env->prog_slot < 0) {
@@ -137,6 +137,10 @@ static int hermes_fsync(struct file *filp, loff_t start, loff_t end, int datasyn
 			"No data has been transferred to device. Aborting.\n");
 		return -EBADFD;
 	}
+
+	eng = hermes_get_ebpf_eng(hermes);
+	if (eng < 0)
+		return eng;
 
 	pr_debug("opcode: 0x%x cid: 0x%x prog_slot: 0x%x data_slot: 0x%x\n",
 			cmd.req.opcode, cmd.req.cid, cmd.req.prog_slot,
@@ -200,6 +204,7 @@ static int hermes_fsync(struct file *filp, loff_t start, loff_t end, int datasyn
 
 out:
 	env->cid++;
+	hermes_release_ebpf_eng(hermes, eng);
 	return res;
 }
 

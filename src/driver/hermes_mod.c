@@ -155,6 +155,8 @@ static void hpdev_free(struct hermes_pci_dev *hpdev)
 
 	ida_destroy(&hpdev->c2h_ida_wq.ida);
 	ida_destroy(&hpdev->h2c_ida_wq.ida);
+	ida_destroy(&hpdev->hdev->ebpf_engines_ida_wq.ida);
+
 	hpdev->xdev = NULL;
 	pr_info("hpdev 0x%p, xdev 0x%p xdma_device_close.\n", hpdev, xdev);
 	xdma_device_close(hpdev->pdev, xdev);
@@ -258,6 +260,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	init_ida_wq(&hpdev->c2h_ida_wq, hpdev->c2h_channel_max - 1);
 	init_ida_wq(&hpdev->h2c_ida_wq, hpdev->h2c_channel_max - 1);
+	init_ida_wq(&hpdev->hdev->ebpf_engines_ida_wq, hpdev->hdev->cfg.eheng);
 
 	dev_set_drvdata(&pdev->dev, hpdev);
 
@@ -418,6 +421,16 @@ void xdma_release_h2c(struct xdma_channel *chnl)
 
 	hpdev = container_of(chnl, struct hermes_pci_dev, xdma_h2c_chnl[id]);
 	ida_wq_release(&hpdev->h2c_ida_wq, id);
+}
+
+int hermes_get_ebpf_eng(struct hermes_dev *hdev)
+{
+	return ida_wq_get(&hdev->ebpf_engines_ida_wq);
+}
+
+void hermes_release_ebpf_eng(struct hermes_dev *hdev, int engine)
+{
+	ida_wq_release(&hdev->ebpf_engines_ida_wq, engine);
 }
 
 static struct pci_driver pci_driver = {
