@@ -82,6 +82,14 @@ int main()
 		goto out_free;
 	}
 
+	/* Trigger program execution */
+	ret = fsync(hermes_fd);
+	if (ret < 0) {
+		perror("Failed to execute program");
+		ret = 1;
+		goto out_free;
+	}
+
 	/* Read back into dst */
 	ret = read(hermes_fd, dst, BUF_SIZE);
 	if (ret < 0) {

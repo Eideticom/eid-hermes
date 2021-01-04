@@ -79,12 +79,12 @@ int main()
 		goto out_free;
 	}
 
-	/* Write some data */
+	/* Write some data and start the program (via the RWF_SYNC flag) */
 	iov.iov_base = src;
 	iov.iov_len = BUF_SIZE;
-	ret = pwritev2(hermes_fd, &iov, 1, 0, 0);
+	ret = pwritev2(hermes_fd, &iov, 1, 0, RWF_SYNC);
 	if (ret < 0) {
-		perror("Failed to write data");
+		perror("Failed to write data/execute program");
 		ret = 1;
 		goto out_free;
 	}
