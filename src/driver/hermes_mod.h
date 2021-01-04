@@ -146,6 +146,8 @@ struct hermes_dev {
 	struct ida prog_slots;
 	struct ida data_slots;
 
+	struct ida_wq ebpf_engines_ida_wq;
+
 	struct hermes_cmd __iomem *cmds;
 	union hermes_cmd_ctrl __iomem *cmds_ctrl;
 
@@ -175,6 +177,8 @@ struct xdma_channel *xdma_get_c2h(struct hermes_pci_dev *hpdev);
 struct xdma_channel *xdma_get_h2c(struct hermes_pci_dev *hpdev);
 void xdma_release_c2h(struct xdma_channel *chnl);
 void xdma_release_h2c(struct xdma_channel *chnl);
+int hermes_get_ebpf_eng(struct hermes_dev *hdev);
+void hermes_release_ebpf_eng(struct hermes_dev *hdev, int engine);
 
 int hermes_cdev_init(void);
 void hermes_cdev_cleanup(void);
