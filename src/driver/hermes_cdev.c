@@ -314,6 +314,8 @@ void hermes_cdev_destroy(struct hermes_pci_dev *hpdev)
 
 	cdev_device_del(&hermes->cdev, &hermes->dev);
 	ida_simple_remove(&hermes_ida, hermes->id);
+	ida_destroy(&hermes->prog_slots);
+	ida_destroy(&hermes->data_slots);
 	put_device(&hermes->dev);
 }
 
