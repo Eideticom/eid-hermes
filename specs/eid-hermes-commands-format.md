@@ -172,16 +172,16 @@ This command executes a pre-loaded eBPF program against a pre-loaded data slot.
 
 | Bytes | Description                                                        |
 |-------|--------------------------------------------------------------------|
-| 11:08 | eBPF return code. Only valid when Status is 0x00 or Status is 0x05 |
+| 15:08 | eBPF return code. Only valid when Status is 0x00 or Status is 0x05 |
 
 **Table 12: Run Program Command Response**
 
 | Status | Description                                                           |
 |--------|-----------------------------------------------------------------------|
-| 0x00   | Success. Command Resposne bytes 11:08 is the value of eBPF register 0 |
+| 0x00   | Success. Command Response bytes 15:08 is the value of eBPF register 0 |
 | 0x02   | Requested program slot does not exist or is not allocated             |
 | 0x03   | Requested data slot does not exist or is not allocated                |
-| 0x05   | An error was encountered during eBPF execution. Command Response bytes 11:08 is platform-specific. On QEMU, this corresponds to the error returned by ubpf_load() or ubpf_exec(). For the FPGA, it is TBD. |
+| 0x05   | An error was encountered during eBPF execution. Command Response bytes 15:08 is platform-specific. On QEMU, this corresponds to the error returned by ubpf_load() or ubpf_exec(). For the FPGA, it is TBD. |
 
 **Table 13: Run Program Slot status codes**
 

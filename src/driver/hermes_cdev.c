@@ -136,13 +136,15 @@ static ssize_t hermes_write(struct file *filp, const char __user *buff,
 	loff_t pos;
 
 	if (env->prog_slot < 0) {
-		pr_err("Program has not been downloaded to device. Aborting.\n");
+		dev_err(&env->hermes->dev,
+			"Program has not been downloaded to device. Aborting.\n");
 		return -EBADFD;
 	}
 
 	if (count + *f_pos > cfg->ehdssze) {
-		pr_err("Tried to write beyond data slot size. Count: 0x%lx Offset: 0x%llx Slot size:0x%x\n",
-				count, *f_pos, cfg->ehdssze);
+		dev_err(&env->hermes->dev,
+			"Tried to write beyond data slot size. Count: 0x%lx Offset: 0x%llx Slot size:0x%x\n",
+			count, *f_pos, cfg->ehdssze);
 		return -EINVAL;
 	}
 
@@ -174,8 +176,9 @@ static long hermes_download_program(struct hermes_env *env,
 		return -EINVAL;
 
 	if (argp->len > cfg->ehpssze) {
-		pr_err("Program size greater than program slot size: 0x%x > 0x%x\n",
-				argp->len, cfg->ehpssze);
+		dev_err(&env->hermes->dev,
+			"Program size greater than program slot size: 0x%x > 0x%x\n",
+			argp->len, cfg->ehpssze);
 		return -EINVAL;
 	}
 
@@ -311,6 +314,8 @@ void hermes_cdev_destroy(struct hermes_pci_dev *hpdev)
 
 	cdev_device_del(&hermes->cdev, &hermes->dev);
 	ida_simple_remove(&hermes_ida, hermes->id);
+	ida_destroy(&hermes->prog_slots);
+	ida_destroy(&hermes->data_slots);
 	put_device(&hermes->dev);
 }
 
