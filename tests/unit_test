@@ -3,7 +3,12 @@
 import ctypes as c
 import fcntl
 import os
+import pathlib
+from shutil import which
+import subprocess as sp
 import unittest
+
+test_dir = pathlib.Path(__file__).absolute().parent
 
 class HermesIoctlArgp(c.Structure):
     _fields_ = [
@@ -178,6 +183,46 @@ class DriverTests(HermesTests):
         self._sendFillerProgram()
         with self.assertRaisesRegex(OSError, "File descriptor in bad state"):
             os.fsync(self.hermes)
+
+class eBPFTests(HermesTests, unittest.TestCase):
+
+    def _compileProg(self, path):
+        p = sp.run(["clang", "-target", "bpf", "-o", "/dev/stdout", "-c", path],
+                capture_output=True)
+        return p.stdout
+
+    @staticmethod
+    def _generateTest(self, path):
+        @unittest.skipIf(which("clang") is None, "clang is required")
+        def test(self):
+            input_f = path.with_suffix(".in")
+            mem_f = path.with_suffix(".mem")
+            prog = self._compileProg(path)
+            self.sendProgram(prog)
+
+            if input_f.exists():
+                with open(input_f, "r") as f:
+                    inp = bytearray.fromhex(f.read())
+                    os.write(self.hermes, inp)
+            else:
+                # the driver expects an input before we can execute the program,
+                # so if one wasn't provided, we use a dummy one
+                os.write(self.hermes, b"0")
+
+            os.fsync(self.hermes)
+
+            if mem_f.exists():
+                with open(mem_f, "r") as f:
+                    expected = bytearray.fromhex(f.read())
+                out = os.read(self.hermes, len(expected))
+                self.assertEqual(expected, out)
+
+        return test
+
+for cfile in (test_dir / "ebpf").glob("*"):
+    test_name = cfile.with_suffix("").name
+    test = eBPFTests._generateTest(test_name, cfile)
+    setattr(eBPFTests, f"test_{test_name}", test)
 
 if __name__ == '__main__':
     unittest.TestProgram(buffer=True, catchbreak=True)
