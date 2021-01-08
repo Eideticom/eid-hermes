@@ -12,16 +12,11 @@ class HermesIoctlArgp(c.Structure):
         ('flags', c.c_uint),
     ]
 
-class DriverTests(unittest.TestCase):
+class HermesTests(unittest.TestCase):
     dev = '/dev/hermes0'
     ehpslot = 16
     ehpssze = 1024 * 1024
     ehdssze = 1024 * 1024
-    prog = bytes.fromhex('b7 00 00 00 00 00 00 00'  # r0 = 0
-                       + '95 00 00 00 00 00 00 00') # ret
-    payloadSmall  = b'z' * 256
-    payloadMedium = b'z' * 4096
-    payloadLarge  = b'z' * ehdssze
     HERMES_DOWNLOAD_PROG_IOCTL = 0x40184850
 
     def setUp(self):
@@ -36,7 +31,7 @@ class DriverTests(unittest.TestCase):
     def _genIoctlArgp(self, prog, flags=0):
         return HermesIoctlArgp(len(prog), c.c_char_p(prog), flags)
 
-    def _sendProgram(self, prog=prog, fd=None, flags=0, cmd=HERMES_DOWNLOAD_PROG_IOCTL):
+    def sendProgram(self, prog, fd=None, flags=0, cmd=HERMES_DOWNLOAD_PROG_IOCTL):
         progArgp = self._genIoctlArgp(prog, flags)
         if fd:
             ret = fcntl.ioctl(fd, cmd, progArgp)
@@ -44,13 +39,23 @@ class DriverTests(unittest.TestCase):
             ret = fcntl.ioctl(self.hermes, cmd, progArgp)
         self.assertEqual(ret, 0)
 
+class DriverTests(HermesTests):
+    payloadSmall  = b'z' * 256
+    payloadMedium = b'z' * 4096
+    payloadLarge  = b'z' * HermesTests.ehdssze
+    prog = bytes.fromhex('b7 00 00 00 00 00 00 00'  # r0 = 0
+                       + '95 00 00 00 00 00 00 00') # ret
+
+    def sendSimpleProgram(self, **kwargs):
+        self.sendProgram(self.prog, **kwargs)
+
     def _testWriteReadv(self, payloads, rbuffs, prog=None, rsize=None, woff=0, roff=0, wflags=0, rflags=0):
         wsize = sum([len(p) for p in payloads])
         if not prog:
             prog = self.prog
         if not rsize:
             rsize = sum([len(b) for b in rbuffs])
-        self._sendProgram(prog)
+        self.sendProgram(prog)
         ret = os.pwritev(self.hermes, payloads, woff, wflags)
         self.assertEqual(ret, wsize)
         ret = os.preadv(self.hermes, rbuffs, roff, rflags)
@@ -63,30 +68,30 @@ class DriverTests(unittest.TestCase):
         self._testWriteReadv([payload], rbuffs, prog, rsize, woff, roff)
 
     def testSendProgram(self):
-        self._sendProgram()
+        self.sendSimpleProgram()
 
     def testLargeProgram(self):
         prog = b'x' * self.ehpssze * 2
         with self.assertRaisesRegex(OSError, "Invalid argument"):
-            self._sendProgram(prog)
+            self.sendProgram(prog)
 
     def testTooManyPrograms(self):
         fds = []
         for i in range(self.ehpslot + 1):
             fds += [open('/dev/hermes0', 'r+b', buffering=0)]
             if i < self.ehpslot:
-                ret = self._sendProgram(fd=fds[i])
+                ret = self.sendSimpleProgram(fd=fds[i])
             else:
                 with self.assertRaisesRegex(OSError, "No space left on device"):
-                    self._sendProgram(fd=fds[i])
+                    self.sendSimpleProgram(fd=fds[i])
 
     def testInvalidFlags(self):
         with self.assertRaisesRegex(OSError, "Invalid argument"):
-            self._sendProgram(flags=1)
+            self.sendSimpleProgram(flags=1)
 
     def testInvalidIoctlNum(self):
         with self.assertRaisesRegex(OSError, "Invalid argument"):
-            self._sendProgram(cmd=0)
+            self.sendSimpleProgram(cmd=0)
 
     def testWriteReadZero(self):
         payload = b''
@@ -126,7 +131,7 @@ class DriverTests(unittest.TestCase):
 
     def testReadBeforeWrite(self):
         with self.assertRaisesRegex(OSError, "No data available"):
-            self._sendProgram()
+            self.sendSimpleProgram()
             os.read(self.hermes, 64)
 
     def testWriteLargeOffset(self):
@@ -174,7 +179,7 @@ class DriverTests(unittest.TestCase):
             os.fsync(self.hermes)
 
     def testFsyncBeforeWrite(self):
-        self._sendProgram()
+        self.sendSimpleProgram()
         with self.assertRaisesRegex(OSError, "File descriptor in bad state"):
             os.fsync(self.hermes)
 
