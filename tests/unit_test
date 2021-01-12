@@ -151,19 +151,29 @@ class DriverTests(unittest.TestCase):
         rbuffs = [bytearray(wlen)]
         self._testWriteReadv(payloads, rbuffs)
 
-    def testWritevFlagNotSupported(self):
-        payloads = [self.payloadSmall]
-        rbuffs = [bytearray(len(payloads[0]))]
-        with self.assertRaisesRegex(OSError, "Operation not supported"):
-            self._testWriteReadv(payloads, rbuffs, wflags=os.RWF_DSYNC)
-        with self.assertRaisesRegex(OSError, "Operation not supported"):
-            self._testWriteReadv(payloads, rbuffs, wflags=os.RWF_SYNC)
-
     def testReadvFlagNotSupported(self):
         payloads = [self.payloadSmall]
         rbuffs = [bytearray(len(payloads[0]))]
         with self.assertRaisesRegex(OSError, "Operation not supported"):
             self._testWriteReadv(payloads, rbuffs, rflags=os.RWF_NOWAIT)
+
+    def testWritevRWF_SYNC(self):
+        payloads = [self.payloadSmall]
+        rbuffs = [bytearray(len(payloads[0]))]
+        self._testWriteReadv(payloads, rbuffs, wflags=os.RWF_SYNC)
+
+    def testFsync(self):
+        self._testWriteRead(self.payloadSmall)
+        os.fsync(self.hermes)
+
+    def testFsyncBeforeProg(self):
+        with self.assertRaisesRegex(OSError, "File descriptor in bad state"):
+            os.fsync(self.hermes)
+
+    def testFsyncBeforeWrite(self):
+        self._sendProgram()
+        with self.assertRaisesRegex(OSError, "File descriptor in bad state"):
+            os.fsync(self.hermes)
 
 if __name__ == '__main__':
     unittest.TestProgram(buffer=True, catchbreak=True)
