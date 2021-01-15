@@ -103,6 +103,11 @@ static ssize_t hermes_read(struct file *filp, char __user *buff, size_t count,
 	struct hermes_env *env = filp->private_data;
 	struct hermes_pci_dev *hpdev = env->hermes->hpdev;
 	struct hermes_cfg *cfg = &hpdev->hdev->cfg;
+	struct iov_iter iter;
+	struct iovec iovec = {
+		.iov_base = (void __user *) buff,
+		.iov_len = count,
+	};
 	struct xdma_channel *chnl;
 	long res;
 	loff_t pos;
@@ -120,7 +125,9 @@ static ssize_t hermes_read(struct file *filp, char __user *buff, size_t count,
 
 	pos = cfg->ehdsoff + *f_pos + env->data_slot * cfg->ehdssze;
 
-	res = xdma_channel_read_write(chnl, (char *) buff, count, &pos, false);
+	iov_iter_init(&iter, READ, &iovec, 1, count);
+	iov_iter_truncate(&iter, cfg->ehdssze - *f_pos);
+	res = xdma_channel_read_write(chnl, &iter, pos);
 
 	return res;
 }
@@ -131,6 +138,11 @@ static ssize_t hermes_write(struct file *filp, const char __user *buff,
 	struct hermes_env *env = filp->private_data;
 	struct hermes_pci_dev *hpdev = env->hermes->hpdev;
 	struct hermes_cfg *cfg = &hpdev->hdev->cfg;
+	struct iov_iter iter;
+	struct iovec iovec = {
+		.iov_base = (void __user *) buff,
+		.iov_len = count,
+	};
 	struct xdma_channel *chnl;
 	long res;
 	loff_t pos;
@@ -157,8 +169,9 @@ static ssize_t hermes_write(struct file *filp, const char __user *buff,
 	chnl = xdma_get_h2c(hpdev);
 
 	pos = cfg->ehdsoff + *f_pos + env->data_slot * cfg->ehdssze;
-
-	res = xdma_channel_read_write(chnl, (char *) buff, count, &pos, true);
+	iov_iter_init(&iter, WRITE, &iovec, 1, count);
+	iov_iter_truncate(&iter, cfg->ehdssze - *f_pos);
+	res = xdma_channel_read_write(chnl, &iter, pos);
 
 	return res;
 }
@@ -168,6 +181,11 @@ static long hermes_download_program(struct hermes_env *env,
 {
 	struct hermes_pci_dev *hpdev = env->hermes->hpdev;
 	struct hermes_cfg *cfg = &hpdev->hdev->cfg;
+	struct iov_iter iter;
+	struct iovec iovec = {
+		.iov_base = (void *) argp->prog,
+		.iov_len = argp->len,
+	};
 	struct xdma_channel *chnl;
 	long res;
 	loff_t pos;
@@ -192,8 +210,8 @@ static long hermes_download_program(struct hermes_env *env,
 
 	pos = cfg->ehpsoff + env->prog_slot * cfg->ehpssze;
 
-	res = xdma_channel_read_write(chnl, (char *) argp->prog, argp->len,
-				      &pos, true);
+	iov_iter_init(&iter, WRITE, &iovec, 1, argp->len);
+	res = xdma_channel_read_write(chnl, &iter, pos);
 
 	if (res < 0)
 		return res;
