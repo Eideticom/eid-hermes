@@ -97,61 +97,24 @@ static int hermes_close(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static ssize_t hermes_read(struct file *filp, char __user *buff, size_t count,
-		loff_t *f_pos)
+static ssize_t hermes_read_write_iter(struct kiocb *iocb, struct iov_iter *to)
 {
-	struct hermes_env *env = filp->private_data;
+	struct hermes_env *env = iocb->ki_filp->private_data;
 	struct hermes_pci_dev *hpdev = env->hermes->hpdev;
 	struct hermes_cfg *cfg = &hpdev->hdev->cfg;
-	struct iov_iter iter;
-	struct iovec iovec = {
-		.iov_base = (void __user *) buff,
-		.iov_len = count,
-	};
 	struct xdma_channel *chnl;
+	loff_t offset = iocb->ki_pos, pos;
+	bool write = (iov_iter_rw(to) == WRITE);
 	long res;
-	loff_t pos;
 
-	if (env->prog_slot < 0) {
-		dev_err(&env->hermes->dev,
-			"Program has not been downloaded to device. Aborting.\n");
-		return -EBADFD;
-	}
+	if (iocb->ki_flags & (IOCB_DSYNC | IOCB_SYNC | IOCB_APPEND |
+				IOCB_NOWAIT))
+		return -EOPNOTSUPP;
 
-	if (env->data_slot < 0)
-		return -ENODATA;
-
-	if (count + *f_pos > cfg->ehdssze) {
-		count = cfg->ehdssze - *f_pos;
-		if ((int) count < 0)
-			count = 0;
-	}
-
-	chnl = xdma_get_c2h(hpdev);
-
-	pos = cfg->ehdsoff + *f_pos + env->data_slot * cfg->ehdssze;
-
-	iov_iter_init(&iter, READ, &iovec, 1, count);
-	iov_iter_truncate(&iter, cfg->ehdssze - *f_pos);
-	res = xdma_channel_read_write(chnl, &iter, pos);
-
-	return res;
-}
-
-static ssize_t hermes_write(struct file *filp, const char __user *buff,
-		size_t count, loff_t *f_pos)
-{
-	struct hermes_env *env = filp->private_data;
-	struct hermes_pci_dev *hpdev = env->hermes->hpdev;
-	struct hermes_cfg *cfg = &hpdev->hdev->cfg;
-	struct iov_iter iter;
-	struct iovec iovec = {
-		.iov_base = (void __user *) buff,
-		.iov_len = count,
-	};
-	struct xdma_channel *chnl;
-	long res;
-	loff_t pos;
+	if (offset == -1)
+		return -EOPNOTSUPP;
+	else if (offset < 0)
+		return -EINVAL;
 
 	if (env->prog_slot < 0) {
 		dev_err(&env->hermes->dev,
@@ -160,17 +123,23 @@ static ssize_t hermes_write(struct file *filp, const char __user *buff,
 	}
 
 	if (env->data_slot < 0) {
-		env->data_slot = hermes_request_slot_data(hpdev->hdev);
-		if (env->data_slot < 0)
-			return env->data_slot;
+		if (write) {
+			env->data_slot = hermes_request_slot_data(hpdev->hdev);
+			if (env->data_slot < 0)
+				return env->data_slot;
+		} else {
+			return -ENODATA;
+		}
 	}
 
-	chnl = xdma_get_h2c(hpdev);
+	if (write)
+		chnl = xdma_get_h2c(hpdev);
+	else
+		chnl = xdma_get_c2h(hpdev);
 
-	pos = cfg->ehdsoff + *f_pos + env->data_slot * cfg->ehdssze;
-	iov_iter_init(&iter, WRITE, &iovec, 1, count);
-	iov_iter_truncate(&iter, cfg->ehdssze - *f_pos);
-	res = xdma_channel_read_write(chnl, &iter, pos);
+	pos = cfg->ehdsoff + offset + env->data_slot * cfg->ehdssze;
+	iov_iter_truncate(to, cfg->ehdssze - offset);
+	res = xdma_channel_read_write(chnl, to, pos);
 
 	return res;
 }
@@ -238,8 +207,8 @@ static const struct file_operations hermes_fops = {
 	.open = hermes_open,
 	.release = hermes_close,
 	.unlocked_ioctl = hermes_ioctl,
-	.read = hermes_read,
-	.write = hermes_write,
+	.read_iter = hermes_read_write_iter,
+	.write_iter = hermes_read_write_iter,
 };
 
 static struct hermes_dev *to_hermes(struct device *dev)
