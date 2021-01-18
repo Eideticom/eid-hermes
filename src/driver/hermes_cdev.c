@@ -112,6 +112,12 @@ static ssize_t hermes_read(struct file *filp, char __user *buff, size_t count,
 	long res;
 	loff_t pos;
 
+	if (env->prog_slot < 0) {
+		dev_err(&env->hermes->dev,
+			"Program has not been downloaded to device. Aborting.\n");
+		return -EBADFD;
+	}
+
 	if (env->data_slot < 0)
 		return -ENODATA;
 

@@ -111,7 +111,7 @@ class DriverTests(unittest.TestCase):
             os.write(self.hermes, self.payloadSmall)
 
     def testReadBeforeProg(self):
-        with self.assertRaisesRegex(OSError, "No data available"):
+        with self.assertRaisesRegex(OSError, "File descriptor in bad state"):
             os.read(self.hermes, 64)
 
     def testReadBeforeWrite(self):
