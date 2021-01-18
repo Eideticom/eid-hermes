@@ -153,13 +153,6 @@ static ssize_t hermes_write(struct file *filp, const char __user *buff,
 		return -EBADFD;
 	}
 
-	if (count + *f_pos > cfg->ehdssze) {
-		dev_err(&env->hermes->dev,
-			"Tried to write beyond data slot size. Count: 0x%lx Offset: 0x%llx Slot size:0x%x\n",
-			count, *f_pos, cfg->ehdssze);
-		return -EINVAL;
-	}
-
 	if (env->data_slot < 0) {
 		env->data_slot = hermes_request_slot_data(hpdev->hdev);
 		if (env->data_slot < 0)
