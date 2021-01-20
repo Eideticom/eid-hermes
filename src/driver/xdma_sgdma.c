@@ -28,6 +28,8 @@
 #include "libxdma.h"
 #include "xdma_sgdma.h"
 
+#define PAGE_PTRS_PER_SGL (sizeof(struct scatterlist) / sizeof(struct page *))
+
 /* Module Parameters */
 unsigned int sgdma_timeout = 10;
 module_param(sgdma_timeout, uint, 0644);
@@ -113,146 +115,32 @@ static int check_transfer_align(struct xdma_engine *engine,
 	return 0;
 }
 
-/*
- * Map a user memory range into a scatterlist
- * inspired by vhost_scsi_map_to_sgl()
- * Returns the number of scatterlist entries used or -errno on error.
- */
-
-static void xdma_channel_unmap_user_buf(struct xdma_io_cb *cb, bool write)
-{
-	int i;
-
-	sg_free_table(&cb->sgt);
-
-	if (!cb->pages || !cb->pages_nr)
-		return;
-
-	for (i = 0; i < cb->pages_nr; i++) {
-		if (cb->pages[i]) {
-			if (!write)
-				set_page_dirty_lock(cb->pages[i]);
-			put_page(cb->pages[i]);
-		} else
-			break;
-	}
-
-	if (i != cb->pages_nr)
-		pr_info("sgl pages %d/%u.\n", i, cb->pages_nr);
-
-	kfree(cb->pages);
-	cb->pages = NULL;
-}
-
-static int xdma_channel_map_user_buf_to_sgl(struct xdma_io_cb *cb, bool write)
-{
-	struct sg_table *sgt = &cb->sgt;
-	unsigned long len = cb->len;
-	char __user *buf = cb->buf;
-	struct scatterlist *sg;
-	unsigned int pages_nr = (((unsigned long)buf + len + PAGE_SIZE - 1) -
-				 ((unsigned long)buf & PAGE_MASK))
-				>> PAGE_SHIFT;
-	int i;
-	int rv;
-
-	if (pages_nr == 0)
-		return -EINVAL;
-
-	if (sg_alloc_table(sgt, pages_nr, GFP_KERNEL)) {
-		pr_err("sgl OOM.\n");
-		return -ENOMEM;
-	}
-
-	cb->pages = kcalloc(pages_nr, sizeof(struct page *), GFP_KERNEL);
-	if (!cb->pages) {
-		pr_err("pages OOM.\n");
-		rv = -ENOMEM;
-		goto err_out;
-	}
-
-	rv = get_user_pages_fast((unsigned long)buf, pages_nr, 1/* write */,
-				cb->pages);
-	/* No pages were pinned */
-	if (rv < 0) {
-		pr_err("unable to pin down %u user pages, %d.\n",
-			pages_nr, rv);
-		goto err_out;
-	}
-	/* Less pages pinned than wanted */
-	if (rv != pages_nr) {
-		pr_err("unable to pin down all %u user pages, %d.\n",
-			pages_nr, rv);
-		cb->pages_nr = rv;
-		rv = -EFAULT;
-		goto err_out;
-	}
-
-	for (i = 1; i < pages_nr; i++) {
-		if (cb->pages[i - 1] == cb->pages[i]) {
-			pr_err("duplicate pages, %d, %d.\n",
-				i - 1, i);
-			rv = -EFAULT;
-			cb->pages_nr = pages_nr;
-			goto err_out;
-		}
-	}
-
-	sg = sgt->sgl;
-	for (i = 0; i < pages_nr; i++, sg = sg_next(sg)) {
-		unsigned int offset = offset_in_page(buf);
-		unsigned int nbytes = min_t(unsigned int,
-					PAGE_SIZE - offset, len);
-
-		flush_dcache_page(cb->pages[i]);
-		sg_set_page(sg, cb->pages[i], nbytes, offset);
-
-		buf += nbytes;
-		len -= nbytes;
-	}
-
-	if (len) {
-		pr_err("Invalid user buffer length. Cannot map to sgl\n");
-		return -EINVAL;
-	}
-
-	cb->pages_nr = pages_nr;
-	return 0;
-
-err_out:
-	xdma_channel_unmap_user_buf(cb, write);
-
-	return rv;
-}
-
 /* xdma_channel_read_write() -- Read from or write to the device
  *
- * @buf userspace buffer
- * @count number of bytes in the userspace buffer
+ * @iter iov_iter to iterate on
  * @pos byte-address in device
- * @dir_to_device If !0, a write to the device is performed
  *
- * Iterate over the userspace buffer, taking at most 255 * PAGE_SIZE bytes for
- * each DMA transfer.
+ * Iterate over the iov_iter and issue XDMA requests.
  *
- * For each transfer, get the user pages, build a sglist, map, build a
- * descriptor table. submit the transfer. wait for the interrupt handler
- * to wake us on completion.
  */
 ssize_t xdma_channel_read_write(struct xdma_channel *chnl,
-		const char __user *buf, size_t count, loff_t *pos, bool write)
+		struct iov_iter *iter, loff_t pos)
 {
-	int rv;
+	int rc, i, pages_nr;
 	ssize_t res = 0;
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;
-	struct xdma_io_cb cb;
+	struct page **pages;
+	struct sg_table sgt;
+	ssize_t size, left;
+	size_t offset, len;
+	bool write;
+	struct sg_page_iter sg_iter;
 
 	xdev = chnl->xdev;
 	engine = chnl->engine;
 
-	dbg_tfr("chnl 0x%p, buf 0x%p,%llu, pos %llu, W %d, %s.\n", chnl, buf,
-		(u64)count,(u64)*pos, write, engine->name);
+	write = iov_iter_rw(iter);
 
 	if ((write && engine->dir != DMA_TO_DEVICE) ||
 	    (!write && engine->dir != DMA_FROM_DEVICE)) {
@@ -261,22 +149,61 @@ ssize_t xdma_channel_read_write(struct xdma_channel *chnl,
 		return -EINVAL;
 	}
 
-	rv = check_transfer_align(engine, buf, count, *pos, 1);
-	if (rv) {
-		pr_info("Invalid transfer alignment detected\n");
-		return rv;
+	rc = sg_alloc_table(&sgt, SG_MAX_SINGLE_ALLOC, GFP_KERNEL);
+	if (rc)
+		return -ENOMEM;
+
+	while (iov_iter_count(iter)) {
+		pages = (struct page **) sgt.sgl;
+		pages += SG_MAX_SINGLE_ALLOC * (PAGE_PTRS_PER_SGL - 1);
+
+		size = iov_iter_get_pages(iter, pages, LONG_MAX,
+				SG_MAX_SINGLE_ALLOC, &offset);
+		if (size < 0) {
+			res = size;
+			goto out;
+		}
+
+		rc = check_transfer_align(engine, (void *) offset, size, pos,
+				1);
+		if (rc) {
+			pr_info("Invalid transfer alignment detected\n");
+			res = rc;
+			goto out;
+		}
+
+		for (left = size, i = 0; left > 0; left -= len, i++) {
+			len = min_t(size_t, PAGE_SIZE - offset, left);
+			sg_set_page(&sgt.sgl[i], pages[i], len, offset);
+			offset = 0;
+		}
+		sgt.nents = pages_nr = i;
+		sg_mark_end(&sgt.sgl[i - 1]);
+
+		size = xdma_xfer_submit(xdev, engine->channel, write, pos, &sgt,
+					0, sgdma_timeout * 1000);
+		if (size < 0) {
+			res = size;
+			goto out;
+		}
+
+		iov_iter_advance(iter, size);
+
+		pos += size;
+		res += size;
+
+		for_each_sg_page(sgt.sgl, &sg_iter, pages_nr, 0) {
+			struct page *page = sg_page_iter_page(&sg_iter);
+			if (!write)
+				set_page_dirty_lock(page);
+			put_page(page);
+		}
+
+		sg_unmark_end(&sgt.sgl[pages_nr - 1]);
 	}
 
-	memset(&cb, 0, sizeof(struct xdma_io_cb));
-	cb.buf = (char __user *)buf;
-	cb.len = count;
-	rv = xdma_channel_map_user_buf_to_sgl(&cb, write);
-	if (rv < 0)
-		return rv;
-
-	res = xdma_xfer_submit(xdev, engine->channel, write, *pos, &cb.sgt,
-				0, sgdma_timeout * 1000);	
-	xdma_channel_unmap_user_buf(&cb, write);
+out:
+	sg_free_table(&sgt);
 
 	return res;
 }

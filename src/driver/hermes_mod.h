@@ -104,14 +104,6 @@ struct hermes_pci_dev {
 	struct xdma_channel xdma_h2c_chnl[XDMA_CHANNEL_NUM_MAX];
 };
 
-struct xdma_io_cb {
-	void __user *buf;
-	size_t len;
-	unsigned int pages_nr;
-	struct sg_table sgt;
-	struct page **pages;
-};
-
 int hermes_cdev_init(void);
 void hermes_cdev_cleanup(void);
 

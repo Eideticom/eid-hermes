@@ -2434,7 +2434,7 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 	}
 
 	if (!dma_mapped) {
-		nents = pci_map_sg(xdev->pdev, sg, sgt->orig_nents, dir);
+		nents = pci_map_sg(xdev->pdev, sg, sgt->nents, dir);
 		if (!nents) {
 			pr_info("map sgl failed, sgt 0x%p.\n", sgt);
 			return -EIO;
@@ -2551,7 +2551,7 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 
 unmap_sgl:
 	if (!dma_mapped && sgt->nents) {
-		pci_unmap_sg(xdev->pdev, sgt->sgl, sgt->orig_nents, dir);
+		pci_unmap_sg(xdev->pdev, sgt->sgl, sgt->nents, dir);
 		sgt->nents = 0;
 	}
 
