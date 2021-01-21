@@ -211,10 +211,9 @@ static ssize_t hermes_read_write_iter(struct kiocb *iocb, struct iov_iter *to)
 	struct xdma_channel *chnl;
 	loff_t offset = iocb->ki_pos, pos;
 	bool write = (iov_iter_rw(to) == WRITE);
-	long res;
+	long ret, ret2;
 
-	if (iocb->ki_flags & (IOCB_DSYNC | IOCB_SYNC | IOCB_APPEND |
-				IOCB_NOWAIT))
+	if (iocb->ki_flags & (IOCB_APPEND | IOCB_NOWAIT))
 		return -EOPNOTSUPP;
 
 	if (offset == -1)
@@ -247,14 +246,20 @@ static ssize_t hermes_read_write_iter(struct kiocb *iocb, struct iov_iter *to)
 
 	pos = cfg->ehdsoff + offset + env->data_slot * cfg->ehdssze;
 	iov_iter_truncate(to, cfg->ehdssze - offset);
-	res = xdma_channel_read_write(chnl, to, pos);
+	ret = xdma_channel_read_write(chnl, to, pos);
 
 	if (write)
 		xdma_release_h2c(chnl);
 	else
 		xdma_release_c2h(chnl);
 
-	return res;
+	if (ret > 0 && write && iocb->ki_flags & IOCB_SYNC) {
+		ret2 = hermes_fsync(iocb->ki_filp, 0, LONG_MAX, 0);
+		if (ret2)
+			ret = ret2;
+	}
+
+	return ret;
 }
 
 static long hermes_download_program(struct hermes_env *env,
