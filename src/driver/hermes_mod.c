@@ -83,6 +83,7 @@ static irqreturn_t ebpf_irq(int irq, void *ptr)
 {
 	struct ebpf_irq_arg *arg = ptr;
 	pr_debug("(irq=%d) eBPF interrupt handler\n", irq);
+	wake_up_interruptible(&arg->hdev->wq[arg->eng]);
 
 	return IRQ_HANDLED;
 }
@@ -94,6 +95,7 @@ static int ebpf_irq_setup(struct hermes_dev *hdev, int first)
 
 	for (i = 0; i < hdev->cfg.eheng; i++) {
 		vector = pci_irq_vector(hdev->pdev, first + i);
+		init_waitqueue_head(&hdev->wq[i]);
 		ebpf_irq_args[i].hdev = hdev;
 		ebpf_irq_args[i].eng = i;
 		rc = request_irq(vector, ebpf_irq, 0, DRV_MODULE_NAME,

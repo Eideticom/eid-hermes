@@ -61,6 +61,15 @@
 extern unsigned int desc_blen_max;
 extern unsigned int sgdma_timeout;
 
+enum hermes_status {
+	HERMES_SUCCESS       = 0x00,
+	HERMES_NO_SPACE      = 0x01,
+	HERMES_INV_PROG_SLOT = 0x02,
+	HERMES_INV_DATA_SLOT = 0x03,
+	HERMES_INV_ADDR      = 0x04,
+	HERMES_EBPF_ERROR    = 0x05,
+};
+
 struct xdma_channel {
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;	/* engine instance, if needed */
@@ -79,6 +88,47 @@ struct __attribute__((__packed__)) hermes_cfg {
 	uint32_t ehdssze;
 };
 
+struct __attribute__((__packed__)) hermes_cmd_req {
+	uint8_t opcode;
+	uint8_t rsv0;
+	uint16_t cid;
+	uint32_t rsv1;
+	union {
+		struct __attribute__((__packed__)) {
+			uint8_t prog_slot;
+			uint8_t data_slot;
+		} run_prog;
+
+		uint8_t cmd_specific[24];
+	};
+};
+
+struct __attribute__((__packed__)) hermes_cmd_res {
+	uint16_t cid;
+	uint8_t status;
+	uint8_t rsv0[5];
+	union {
+		struct __attribute__((__packed__)) {
+			uint64_t ebpf_ret;
+		} run_prog;
+
+		uint8_t cmd_specific[8];
+	};
+};
+
+struct __attribute__((__packed__)) hermes_cmd {
+	struct hermes_cmd_req req;
+	struct hermes_cmd_res res;
+};
+
+union __attribute__((__packed__)) hermes_cmd_ctrl {
+	struct {
+		uint8_t ehcmdexec:1;
+		uint8_t ehcmddone:1;
+	};
+	uint8_t ehcmdctrl;
+};
+
 struct hermes_dev {
 	struct device dev;
 	struct pci_dev *pdev;
@@ -90,8 +140,13 @@ struct hermes_dev {
 	struct ida prog_slots;
 	struct ida data_slots;
 
+	struct hermes_cmd __iomem *cmds;
+	union hermes_cmd_ctrl __iomem *cmds_ctrl;
+
 	/* MSI-X vector for eBPF engines */
 	int irq_lines[EBPF_ENG_NUM_MAX];
+	/* wait queue for command completion */
+	wait_queue_head_t wq[EBPF_ENG_NUM_MAX];
 };
 
 struct ida_wq {
