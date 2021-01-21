@@ -78,6 +78,7 @@ static irqreturn_t ebpf_irq(int irq, void *ptr)
 {
 	struct ebpf_irq *arg = ptr;
 	pr_debug("(irq=%d) eBPF interrupt handler\n", irq);
+	wake_up_interruptible(&arg->wq);
 
 	return IRQ_HANDLED;
 }
@@ -97,6 +98,7 @@ static int ebpf_irq_setup(struct hermes_dev *hdev, int first)
 			return rc;
 		}
 		pr_info("eBPF engine %d, irq#%d.\n", i, vector);
+		init_waitqueue_head(&hdev->irq[i].wq);
 		hdev->irq[i].irq_line = vector;
 	}
 
