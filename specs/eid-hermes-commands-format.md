@@ -89,6 +89,7 @@ The following `Status` of Command Responses are defined:
 | 0x03   | Invalid Data Slot    |
 | 0x04   | Invalid Address      |
 | 0x05   | eBPF error           |
+| 0x06   | Invalid opcode       |
 
 **Table 3: Status**
 
