@@ -44,8 +44,7 @@ memory. The eBPF program may reference memory via offsets into the
 eBPF program memory. The eBPF program may populate parts of the eBPF
 program memory with both intermediate data *and* output data. Once the
 eBPF program has completed the device will inform the host via an
-interrupt. The host can also choose to poll the relevant BAR0 register
-to check for command completion.
+interrupt and set the `EHCMDDONE` register, which can be checked by the host.
 
 4. Host uses a driver to exercise BAR2 to initate DMAs on the device
 that take the output data from the relevant eBPF data slot and move it
