@@ -53,9 +53,16 @@ commands.
 | ...                    | ...    | ...          | ...  | ...   | ... |
 | 0x1000 + (EHENG-1)\*48 | 32     | EHCMDREQN-1  | RW   | NA    | Command Request for engine N-1 |
 | 0x1020 + (EHENG-1)\*48 | 16     | EHCMDRESN-1  | RO   | NA    | Command Response for engine N-1 |
-| 0x2000                 | 1      | EHCMDCTRL0   | RW   | NA    | Write 1 to start Command Request 0. Cleared after command finishes |
+| 0x2000                 | 1      | EHCMDCTRL0   | RW   | NA    | Command control for request 0. See EHCMDCTRL table for details |
 | ...                    | ...    | ...          | ...  | ...   | ... |
-| 0x2000 + (EHENG-1)     | 1      | EHCMDCTRLN-1 | RW   | NA    | Write 1 to start Command Request N-1. Cleared after command finishes |
+| 0x2000 + (EHENG-1)     | 1      | EHCMDCTRLN-1 | RW   | NA    | Command control for request N-1. See EHCMDCTRL table for details |
+
+#### EHCMDCTRL
+| Bit | Name      | Mode | Description |
+|-----|-----------|------|-------------|
+|  0  | EHCMDEXEC | RW   | Host writes 1 to start command. Device clears after command finishes |
+|  1  | EHCMDDONE | RO   | Indicates if command has finished. Cleared by device before starting command, set when done |
+| 2-7 | --        | --   | Reserved |
 
 ## BAR2 Layout
 
