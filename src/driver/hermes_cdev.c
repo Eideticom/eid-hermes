@@ -136,10 +136,17 @@ static ssize_t hermes_read_write_iter(struct kiocb *iocb, struct iov_iter *to)
 		chnl = xdma_get_h2c(hpdev);
 	else
 		chnl = xdma_get_c2h(hpdev);
+	if (IS_ERR(chnl))
+		return PTR_ERR(chnl);
 
 	pos = cfg->ehdsoff + offset + env->data_slot * cfg->ehdssze;
 	iov_iter_truncate(to, cfg->ehdssze - offset);
 	res = xdma_channel_read_write(chnl, to, pos);
+
+	if (write)
+		xdma_release_h2c(chnl);
+	else
+		xdma_release_c2h(chnl);
 
 	return res;
 }
@@ -175,11 +182,15 @@ static long hermes_download_program(struct hermes_env *env,
 	}
 
 	chnl = xdma_get_h2c(hpdev);
+	if (IS_ERR(chnl))
+		return PTR_ERR(chnl);
 
 	pos = cfg->ehpsoff + env->prog_slot * cfg->ehpssze;
 
 	iov_iter_init(&iter, WRITE, &iovec, 1, argp->len);
 	res = xdma_channel_read_write(chnl, &iter, pos);
+
+	xdma_release_h2c(chnl);
 
 	if (res < 0)
 		return res;

@@ -59,6 +59,8 @@ static void hpdev_free(struct hermes_pci_dev *hpdev)
 {
 	struct xdma_dev *xdev = hpdev->xdev;
 
+	ida_destroy(&hpdev->c2h_ida_wq.ida);
+	ida_destroy(&hpdev->h2c_ida_wq.ida);
 	hpdev->xdev = NULL;
 	pr_info("hpdev 0x%p, xdev 0x%p xdma_device_close.\n", hpdev, xdev);
 	xdma_device_close(hpdev->pdev, xdev);
@@ -82,6 +84,13 @@ static struct hermes_pci_dev *hpdev_alloc(struct pci_dev *pdev)
 
 	hpdev_cnt++;
 	return hpdev;
+}
+
+static void init_ida_wq(struct ida_wq *ida_wq, unsigned int max)
+{
+	ida_init(&ida_wq->ida);
+	ida_wq->max = max;
+	init_waitqueue_head(&ida_wq->wq);
 }
 
 static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
@@ -144,6 +153,9 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	rv = hermes_cdev_create(hpdev);
 	if (rv)
 		goto err_out;
+
+	init_ida_wq(&hpdev->c2h_ida_wq, hpdev->c2h_channel_max - 1);
+	init_ida_wq(&hpdev->h2c_ida_wq, hpdev->h2c_channel_max - 1);
 
 	dev_set_drvdata(&pdev->dev, hpdev);
 
@@ -253,6 +265,34 @@ static void xdma_reset_notify(struct pci_dev *pdev, bool prepare)
 }
 #endif
 
+static int __ida_wq_get(struct ida_wq *ida_wq, int *id)
+{
+	int ret;
+
+	ret = ida_alloc_max(&ida_wq->ida, ida_wq->max, GFP_KERNEL);
+	if (ret == -ENOSPC)
+		return 0;
+	*id = ret;
+	return 1;
+}
+
+static int ida_wq_get(struct ida_wq *ida_wq)
+{
+	int id, ret;
+
+	ret = wait_event_interruptible(ida_wq->wq, __ida_wq_get(ida_wq, &id));
+	if (ret)
+		return ret;
+
+	return id;
+}
+
+static void ida_wq_release(struct ida_wq *ida_wq, unsigned int id)
+{
+	ida_free(&ida_wq->ida, id);
+	wake_up_interruptible(&ida_wq->wq);
+}
+
 static const struct pci_error_handlers xdma_err_handler = {
 	.error_detected	= xdma_error_detected,
 	.slot_reset	= xdma_slot_reset,
@@ -265,14 +305,41 @@ static const struct pci_error_handlers xdma_err_handler = {
 #endif
 };
 
+static inline struct xdma_channel *xdma_get_chnl(struct xdma_channel *channels,
+		struct ida_wq *ida_wq)
+{
+	int id = ida_wq_get(ida_wq);
+	if (id < 0)
+		return ERR_PTR(id);
+	return &channels[id];
+}
+
 struct xdma_channel *xdma_get_c2h(struct hermes_pci_dev *hpdev)
 {
-	return &hpdev->xdma_c2h_chnl[0];
+	return xdma_get_chnl(hpdev->xdma_c2h_chnl, &hpdev->c2h_ida_wq);
 }
 
 struct xdma_channel *xdma_get_h2c(struct hermes_pci_dev *hpdev)
 {
-	return &hpdev->xdma_h2c_chnl[0];
+	return xdma_get_chnl(hpdev->xdma_h2c_chnl, &hpdev->h2c_ida_wq);
+}
+
+void xdma_release_c2h(struct xdma_channel *chnl)
+{
+	unsigned int id = chnl->engine->channel;
+	struct hermes_pci_dev *hpdev;
+
+	hpdev = container_of(chnl, struct hermes_pci_dev, xdma_c2h_chnl[id]);
+	ida_wq_release(&hpdev->c2h_ida_wq, id);
+}
+
+void xdma_release_h2c(struct xdma_channel *chnl)
+{
+	unsigned int id = chnl->engine->channel;
+	struct hermes_pci_dev *hpdev;
+
+	hpdev = container_of(chnl, struct hermes_pci_dev, xdma_h2c_chnl[id]);
+	ida_wq_release(&hpdev->h2c_ida_wq, id);
 }
 
 static struct pci_driver pci_driver = {
