@@ -265,6 +265,16 @@ static const struct pci_error_handlers xdma_err_handler = {
 #endif
 };
 
+struct xdma_channel *xdma_get_c2h(struct hermes_pci_dev *hpdev)
+{
+	return &hpdev->xdma_c2h_chnl[0];
+}
+
+struct xdma_channel *xdma_get_h2c(struct hermes_pci_dev *hpdev)
+{
+	return &hpdev->xdma_h2c_chnl[0];
+}
+
 static struct pci_driver pci_driver = {
 	.name = DRV_MODULE_NAME,
 	.id_table = pci_ids,

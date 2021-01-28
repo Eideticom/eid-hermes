@@ -104,6 +104,9 @@ struct hermes_pci_dev {
 	struct xdma_channel xdma_h2c_chnl[XDMA_CHANNEL_NUM_MAX];
 };
 
+struct xdma_channel *xdma_get_c2h(struct hermes_pci_dev *hpdev);
+struct xdma_channel *xdma_get_h2c(struct hermes_pci_dev *hpdev);
+
 int hermes_cdev_init(void);
 void hermes_cdev_cleanup(void);
 
