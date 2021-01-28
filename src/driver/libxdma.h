@@ -558,18 +558,6 @@ struct xdma_dev *xdev_find_by_pdev(struct pci_dev *pdev);
 
 void xdma_device_offline(struct pci_dev *pdev, void *dev_handle);
 void xdma_device_online(struct pci_dev *pdev, void *dev_handle);
-
-int xdma_performance_submit(struct xdma_dev *xdev, struct xdma_engine *engine);
-struct xdma_transfer *engine_cyclic_stop(struct xdma_engine *engine);
-void enable_perf(struct xdma_engine *engine);
-void get_perf_stats(struct xdma_engine *engine);
-
-int xdma_cyclic_transfer_setup(struct xdma_engine *engine);
-int xdma_cyclic_transfer_teardown(struct xdma_engine *engine);
-ssize_t xdma_engine_read_cyclic(struct xdma_engine *engine, char __user *buf,
-				size_t count, int timeout_ms);
-int engine_addrmode_set(struct xdma_engine *engine, unsigned long arg);
-
 /*
  * xdma_device_open - read the pci bars and configure the fpga
  *	should be called from probe()
