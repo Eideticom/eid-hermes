@@ -67,17 +67,6 @@ int hpdev_init_channels(struct hermes_pci_dev *hpdev);
 ssize_t xdma_channel_read_write(struct xdma_channel *chnl,
 		struct iov_iter *iter, loff_t pos);
 
-static inline struct xdma_channel *xdma_get_c2h(struct hermes_pci_dev *hpdev)
-{
-	return &hpdev->xdma_c2h_chnl[0];
-}
-
-static inline struct xdma_channel *xdma_get_h2c(struct hermes_pci_dev *hpdev)
-{
-	return &hpdev->xdma_h2c_chnl[0];
-}
-
-
 /* IOCTL codes */
 
 #define IOCTL_XDMA_PERF_START   _IOW('q', 1, struct xdma_performance_ioctl *)

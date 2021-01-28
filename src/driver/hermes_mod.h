@@ -91,6 +91,12 @@ struct hermes_dev {
 	struct ida data_slots;
 };
 
+struct ida_wq {
+	struct ida ida;
+	unsigned int max;
+	wait_queue_head_t wq;
+};
+
 /* XDMA PCIe device specific book-keeping */
 struct hermes_pci_dev {
 	unsigned long magic;		/* structure ID for sanity checks */
@@ -102,7 +108,15 @@ struct hermes_pci_dev {
 
 	struct xdma_channel xdma_c2h_chnl[XDMA_CHANNEL_NUM_MAX];
 	struct xdma_channel xdma_h2c_chnl[XDMA_CHANNEL_NUM_MAX];
+
+	struct ida_wq c2h_ida_wq;
+	struct ida_wq h2c_ida_wq;
 };
+
+struct xdma_channel *xdma_get_c2h(struct hermes_pci_dev *hpdev);
+struct xdma_channel *xdma_get_h2c(struct hermes_pci_dev *hpdev);
+void xdma_release_c2h(struct xdma_channel *chnl);
+void xdma_release_h2c(struct xdma_channel *chnl);
 
 int hermes_cdev_init(void);
 void hermes_cdev_cleanup(void);
