@@ -158,9 +158,6 @@
 #define XDMA_ID_H2C 0x1fc0U
 #define XDMA_ID_C2H 0x1fc1U
 
-/* for C2H AXI-ST mode */
-#define CYCLIC_RX_PAGES_MAX	256
-
 #define LS_BYTE_MASK 0x000000FFUL
 
 #define BLOCK_ID_MASK 0xFFF00000
@@ -376,7 +373,6 @@ struct xdma_transfer {
 	enum transfer_state state;	/* state of the transfer */
 	unsigned int flags;
 #define XFER_FLAG_NEED_UNMAP	0x1
-	int cyclic;			/* flag if transfer is cyclic */
 	int last_in_request;		/* flag if last within request */
 	unsigned int len;
 	struct sg_table *sgt;
@@ -426,23 +422,12 @@ struct xdma_engine {
 	/* Transfer list management */
 	struct list_head transfer_list;	/* queue of transfers */
 
-	/* Members applicable to AXI-ST C2H (cyclic) transfers */
-	struct xdma_result *cyclic_result;
-	dma_addr_t cyclic_result_bus;	/* bus addr for transfer */
-	struct xdma_request_cb *cyclic_req; 
-	struct sg_table cyclic_sgt; 
-
 	u8 *perf_buf_virt;
 	dma_addr_t perf_buf_bus; /* bus address */
-
-	u8 eop_found; /* used only for cyclic(rx:c2h) */
 
 	int rx_tail;	/* follows the HW */
 	int rx_head;	/* where the SW reads from */
 	int rx_overrun;	/* flag if overrun occured */
-
-	/* for copy from cyclic buffer to user buffer */
-	unsigned int user_buffer_index;
 
 	/* Members associated with interrupt mode support */
 	wait_queue_head_t shutdown_wq;	/* wait queue for shutdown sync */

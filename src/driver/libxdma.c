@@ -599,8 +599,7 @@ struct xdma_transfer *engine_service_transfer_list(struct xdma_engine *engine,
 	 * iterate over all the transfers completed by the engine,
 	 * except for the last (i.e. use > instead of >=).
 	 */
-	while (transfer && (!transfer->cyclic) &&
-		(*pdesc_completed > transfer->desc_num)) {
+	while (transfer && (*pdesc_completed > transfer->desc_num)) {
 		/* remove this transfer from pdesc_completed */
 		*pdesc_completed -= transfer->desc_num;
 		dbg_tfr("%s engine completed non-cyclic xfer 0x%p (%d desc)\n",
@@ -694,13 +693,12 @@ struct xdma_transfer *engine_service_final_transfer(struct xdma_engine *engine,
 		dbg_tfr("*pdesc_completed=%d, transfer->desc_num=%d",
 			*pdesc_completed, transfer->desc_num);
 
-		if (!transfer->cyclic) {
-			/*
-			 * if the engine stopped on this transfer,
-			 * it should be the last
-			 */
-			WARN_ON(*pdesc_completed > transfer->desc_num);
-		}
+		/*
+		 * if the engine stopped on this transfer,
+		 * it should be the last
+		 */
+		WARN_ON(*pdesc_completed > transfer->desc_num);
+
 		/* mark transfer as succesfully completed */
 		transfer->state = TRANSFER_STATE_COMPLETED;
 	}
@@ -748,132 +746,6 @@ static void engine_service_perf(struct xdma_engine *engine, u32 desc_completed)
 		}
 	}
 }
-
-static void engine_transfer_dequeue(struct xdma_engine *engine)
-{
-	struct xdma_transfer *transfer;
-
-	if (unlikely(!engine)) {
-		pr_err("engine NULL.\n");
-		return;
-	}
-
-	/* pick first transfer on the queue (was submitted to the engine) */
-	transfer = list_entry(engine->transfer_list.next, struct xdma_transfer,
-		entry);
-	if (!transfer || transfer != &engine->cyclic_req->xfer) {
-		pr_info("%s, xfer 0x%p != 0x%p.\n",
-			engine->name, transfer, &engine->cyclic_req->xfer);
-		return;
-	}
-	dbg_tfr("%s engine completed cyclic transfer 0x%p (%d desc).\n",
-		engine->name, transfer, transfer->desc_num);
-	/* remove completed transfer from list */
-	list_del(engine->transfer_list.next);
-}
-
-static int engine_ring_process(struct xdma_engine *engine)
-{
-	struct xdma_result *result;
-	int start;
-	int eop_count = 0;
-
-	if (unlikely(!engine || !engine->cyclic_result)) {
-		pr_err("engine 0x%p, cyclic_result 0x%p.\n",
-			engine, engine ? engine->cyclic_result : NULL);
-		return -EINVAL;
-	}
-	result = engine->cyclic_result;
-
-	/* where we start receiving in the ring buffer */
-	start = engine->rx_tail;
-
-	/* iterate through all newly received RX result descriptors */
-	dbg_tfr("%s, result %d, 0x%x, len 0x%x.\n",
-		engine->name, engine->rx_tail, result[engine->rx_tail].status,
-		result[engine->rx_tail].length);
-	while (result[engine->rx_tail].status && !engine->rx_overrun) {
-		/* EOP bit set in result? */
-		if (result[engine->rx_tail].status & RX_STATUS_EOP){
-			eop_count++;
-		}
-
-		/* increment tail pointer */
-		engine->rx_tail = (engine->rx_tail + 1) % CYCLIC_RX_PAGES_MAX;
-
-		dbg_tfr("%s, head %d, tail %d, 0x%x, len 0x%x.\n",
-			engine->name, engine->rx_head, engine->rx_tail,
-			result[engine->rx_tail].status,
-			result[engine->rx_tail].length);
-
-		/* overrun? */
-		if (engine->rx_tail == engine->rx_head) {
-			dbg_tfr("%s: overrun\n", engine->name);
-			/* flag to user space that overrun has occurred */
-			engine->rx_overrun = 1;
-		}
-	}
-
-	return eop_count;
-}
-
-static int engine_service_cyclic_interrupt(struct xdma_engine *engine)
-{
-	int eop_count = 0;
-	struct xdma_transfer *xfer;
-
-	if (unlikely(!engine || (engine->magic != MAGIC_ENGINE))) {
-		pr_err("bad engine 0x%p, magic 0x%lx.\n",
-			engine, engine ? engine->magic : 0UL);
-		return -EINVAL;
-	}
-
-	engine_status_read(engine, 1, 0);
-
-	eop_count = engine_ring_process(engine);
-	/*
-	 * wake any reader on EOP, as one or more packets are now in
-	 * the RX buffer
-	 */
-	xfer = &engine->cyclic_req->xfer;
-	if (eop_count > 0) {
-		/* awake task on transfer's wait queue */
-		dbg_tfr("wake_up_interruptible() due to %d EOP's\n",
-			eop_count);
-		engine->eop_found = 1;
-		wake_up_interruptible(&xfer->wq);
-	}
-
-	/* engine was running but is no longer busy? */
-	if ((engine->running) && !(engine->status & XDMA_STAT_BUSY)) {
-		/* transfers on queue? */
-		if (!list_empty(&engine->transfer_list))
-			engine_transfer_dequeue(engine);
-
-		engine_service_shutdown(engine);
-	}
-
-	return 0;
-}
-
-/* must be called with engine->lock already acquired */
-static int engine_service_cyclic(struct xdma_engine *engine)
-{
-	int rc = 0;
-
-	dbg_tfr("engine_service_cyclic()");
-
-	if (unlikely(!engine || (engine->magic != MAGIC_ENGINE))) {
-		pr_err("bad engine 0x%p, magic 0x%lx.\n",
-			engine, engine ? engine->magic : 0UL);
-		return -EINVAL;
-	}
-
-	rc = engine_service_cyclic_interrupt(engine);
-
-	return rc;
-}
-
 
 static void engine_service_resume(struct xdma_engine *engine)
 {
@@ -1014,10 +886,7 @@ static void engine_service_work(struct work_struct *work)
 
 	dbg_tfr("engine_service() for %s engine %p\n",
 		engine->name, engine);
-	if (engine->cyclic_req)
-                engine_service_cyclic(engine);
-	else
-		engine_service(engine);
+	engine_service(engine);
 
 	/* re-enable interrupts for this engine */
 	write_register(engine->interrupt_enable_mask_value,
@@ -1890,13 +1759,6 @@ static void engine_free_resource(struct xdma_engine *engine)
 			engine->desc, engine->desc_bus);
 		engine->desc = NULL;
 	}
-
-	if (engine->cyclic_result) {
-		dma_free_coherent(&xdev->pdev->dev,
-			CYCLIC_RX_PAGES_MAX * sizeof(struct xdma_result),
-			engine->cyclic_result, engine->cyclic_result_bus);
-		engine->cyclic_result = NULL;
-	}
 }
 
 static void engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
@@ -1977,18 +1839,6 @@ static int engine_alloc_resource(struct xdma_engine *engine)
 		pr_warn("dev %s, %s pre-alloc desc OOM.\n",
 			dev_name(&xdev->pdev->dev), engine->name);
 		goto err_out;
-	}
-
-	if (engine->streaming && engine->dir == DMA_FROM_DEVICE) {
-		engine->cyclic_result = dma_alloc_coherent(&xdev->pdev->dev,
-			CYCLIC_RX_PAGES_MAX * sizeof(struct xdma_result),
-			&engine->cyclic_result_bus, GFP_KERNEL);
-
-		if (!engine->cyclic_result) {
-                        pr_warn("%s, %s pre-alloc result OOM.\n",
-				dev_name(&xdev->pdev->dev), engine->name);
-			goto err_out;
-		}
 	}
 
 	return 0;
