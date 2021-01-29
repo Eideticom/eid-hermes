@@ -40,10 +40,6 @@
  * if the config bar is fixed, the driver does not neeed to search through
  * all of the bars
  */
-//#define XDMA_CONFIG_BAR_NUM	1
-
-/* Switch debug printing on/off */
-#define XDMA_DEBUG		0
 
 /* SECTION: Preprocessor macros/constants */
 #define XDMA_BAR_NUM		(6)
@@ -58,7 +54,6 @@
  */
 #define XDMA_ENG_IRQ_NUM	(1)
 #define MAX_EXTRA_ADJ		(0x3F)
-#define RX_STATUS_EOP		(1)
 
 /* Target internal components on XDMA control BAR */
 #define XDMA_OFS_INT_CTRL	(0x2000UL)
@@ -147,13 +142,6 @@
 #define XDMA_DESC_COMPLETED	(1UL << 1)
 #define XDMA_DESC_EOP		(1UL << 4)
 
-#define XDMA_PERF_RUN	(1UL << 0)
-#define XDMA_PERF_CLEAR	(1UL << 1)
-#define XDMA_PERF_AUTO	(1UL << 2)
-
-#define MAGIC_ENGINE	0xEEEEEEEEUL
-#define MAGIC_DEVICE	0xDDDDDDDDUL
-
 /* upper 16-bits of engine identifier register */
 #define XDMA_ID_H2C 0x1fc0U
 #define XDMA_ID_C2H 0x1fc1U
@@ -166,17 +154,11 @@
 #define IRQ_BLOCK_ID 0x1fc20000UL
 #define CONFIG_BLOCK_ID 0x1fc30000UL
 
-#define MAX_DESC_BUS_ADDR (0xffffffffULL)
-
 #define DESC_MAGIC 0xAD4B0000UL
 
-#define C2H_WB 0x52B4UL
-
-#define MAX_NUM_ENGINES (XDMA_CHANNEL_NUM_MAX * 2)
 #define H2C_CHANNEL_OFFSET 0x1000
 #define SGDMA_OFFSET_FROM_CHANNEL 0x4000
 #define CHANNEL_SPACING 0x100
-#define TARGET_SPACING 0x1000
 
 /* obtain the 32 most significant (high) bits of a 32-bit or 64-bit address */
 #define PCI_DMA_H(addr) ((addr >> 16) >> 16)
