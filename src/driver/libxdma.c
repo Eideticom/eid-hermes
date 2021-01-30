@@ -1772,7 +1772,7 @@ static void engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 	xdev->engines_num--;
 }
 
-static int engine_init_regs(struct xdma_engine *engine)
+static void engine_init_regs(struct xdma_engine *engine)
 {
 	u32 reg_value;
 
@@ -1801,8 +1801,6 @@ static int engine_init_regs(struct xdma_engine *engine)
 			(unsigned long)(&engine->regs));
 
 	engine->interrupt_enable_mask_value = reg_value;
-
-	return 0;
 }
 
 static int engine_alloc_resource(struct xdma_engine *engine)
@@ -1874,9 +1872,7 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 	if (rv)
 		return rv;
 
-	rv = engine_init_regs(engine);
-	if (rv)
-		return rv;
+	engine_init_regs(engine);
 
 	return 0;
 }
@@ -1898,7 +1894,7 @@ static void transfer_destroy(struct xdma_dev *xdev, struct xdma_transfer *xfer)
 	}
 }
 
-static int transfer_build(struct xdma_engine *engine,
+static void transfer_build(struct xdma_engine *engine,
 			struct xdma_request_cb *req, unsigned int desc_max)
 {
 	struct xdma_transfer *xfer = &req->xfer;
@@ -1921,7 +1917,6 @@ static int transfer_build(struct xdma_engine *engine,
 			req->ep_addr += sdesc->len;
 	}
 	req->sw_desc_idx += desc_max; 
-	return 0;
 }
 
 static int transfer_init(struct xdma_engine *engine, struct xdma_request_cb *req)
