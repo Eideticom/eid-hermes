@@ -253,13 +253,6 @@ static void engine_reg_dump(struct xdma_engine *engine)
 		engine->name, &engine->regs->interrupt_enable_mask, w);
 }
 
-/**
- * engine_status_read() - read status of SG DMA engine (optionally reset)
- *
- * Stores status in engine->status.
- *
- * @return -1 on failure, status register otherwise
- */
 static void engine_status_dump(struct xdma_engine *engine)
 {
 	u32 v = engine->status;
@@ -347,6 +340,11 @@ static void engine_status_dump(struct xdma_engine *engine)
 	pr_info("%s\n", buffer);
 }
 
+/**
+ * engine_status_read() - read status of SG DMA engine (optionally reset)
+ *
+ * Stores status in engine->status.
+ */
 static void engine_status_read(struct xdma_engine *engine, bool clr, bool dump)
 {
 	if (unlikely(!engine)) {
@@ -547,14 +545,6 @@ static struct xdma_transfer *engine_start(struct xdma_engine *engine)
 	return transfer;
 }
 
-/**
- * engine_service() - service an SG DMA engine
- *
- * must be called with engine->lock already acquired
- *
- * @engine pointer to struct xdma_engine
- *
- */
 static void engine_service_shutdown(struct xdma_engine *engine)
 {
 	/* if the engine stopped with RUN still asserted, de-assert RUN now */
@@ -1575,14 +1565,13 @@ static int xdma_desc_control_set(struct xdma_desc *first, u32 control_field)
 	return 0;
 }
 
-/* xdma_desc() - Fill a descriptor with the transfer details
+/* xdma_desc_set() - Fill a descriptor with the transfer details
  *
  * @desc pointer to descriptor to be filled
- * @addr root complex address
+ * @rc_bus_addr root complex address
  * @ep_addr end point address
  * @len number of bytes, must be a (non-negative) multiple of 4.
  * @dir, dma direction
- * is the end point address. If zero, vice versa.
  *
  * Does not modify the next pointer
  */
@@ -1783,17 +1772,6 @@ static void engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 	xdev->engines_num--;
 }
 
-/* engine_create() - Create an SG DMA engine bookkeeping data structure
- *
- * An SG DMA engine consists of the resources for a single-direction transfer
- * queue; the SG DMA hardware, the software queue and interrupt handling.
- *
- * @dev Pointer to pci_dev
- * @offset byte address offset in BAR[xdev->config_bar_idx] resource for the
- * SG DMA * controller registers.
- * @dir: DMA_TO/FROM_DEVICE
- * @streaming Whether the engine is attached to AXI ST (rather than MM)
- */
 static int engine_init_regs(struct xdma_engine *engine)
 {
 	u32 reg_value;
