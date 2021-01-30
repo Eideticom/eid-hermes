@@ -1807,7 +1807,6 @@ static int engine_init_regs(struct xdma_engine *engine)
 	/* Configure error interrupts by default */
 	reg_value = XDMA_CTRL_IE_DESC_ALIGN_MISMATCH;
 	reg_value |= XDMA_CTRL_IE_MAGIC_STOPPED;
-	reg_value |= XDMA_CTRL_IE_MAGIC_STOPPED;
 	reg_value |= XDMA_CTRL_IE_READ_ERROR;
 	reg_value |= XDMA_CTRL_IE_DESC_ERROR;
 
