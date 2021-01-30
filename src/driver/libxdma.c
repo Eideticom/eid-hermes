@@ -261,7 +261,7 @@ static void engine_status_dump(struct xdma_engine *engine)
 	int len = 0;
 
 	len = sprintf(buf, "SG engine %s status: 0x%08x: ", engine->name, v);
-	
+
 	if ((v & XDMA_STAT_BUSY))
 		len += sprintf(buf + len, "BUSY,");
 	if ((v & XDMA_STAT_DESC_STOPPED))
@@ -307,7 +307,6 @@ static void engine_status_dump(struct xdma_engine *engine)
 				len += sprintf(buf + len, "SLAVE_ERR ");
 			buf[len - 1] = ',';
 		}
-		
 	} else {
 		/* C2H only */
 		if ((v & XDMA_STAT_C2H_R_ERR_MASK)) {
@@ -641,7 +640,7 @@ static void engine_err_handle(struct xdma_engine *engine,
 			"%s, s 0x%x, aborted xfer 0x%p, cmpl %d/%d\n",
 			engine->name, engine->status, transfer, desc_completed,
 			transfer->desc_num);
-	
+
 	/* mark transfer as failed */
 	transfer->state = TRANSFER_STATE_FAILED;
 	xdma_engine_stop(engine);
@@ -1916,7 +1915,7 @@ static void transfer_build(struct xdma_engine *engine,
 		if (!engine->non_incr_addr)
 			req->ep_addr += sdesc->len;
 	}
-	req->sw_desc_idx += desc_max; 
+	req->sw_desc_idx += desc_max;
 }
 
 static int transfer_init(struct xdma_engine *engine, struct xdma_request_cb *req)
@@ -1944,7 +1943,7 @@ static int transfer_init(struct xdma_engine *engine, struct xdma_request_cb *req
 	rv = transfer_desc_init(xfer, desc_max);
 	if (rv < 0)
 		return rv;
-	
+
 	dbg_sg("transfer->desc_bus = 0x%llx.\n", (u64)xfer->desc_bus);
 
 	transfer_build(engine, req, desc_max);
@@ -1982,7 +1981,7 @@ static void sgt_dump(struct sg_table *sgt)
 	for (i = 0; i < sgt->nents; i++, sg = sg_next(sg))
 		pr_info("%d, 0x%p, pg 0x%p,%u+%u, dma 0x%llx,%u.\n",
 			i, sg, sg_page(sg), sg->offset, sg->length,
-			sg_dma_address(sg), sg_dma_len(sg)); 
+			sg_dma_address(sg), sg_dma_len(sg));
 }
 
 static void xdma_request_cb_dump(struct xdma_request_cb *req)
@@ -2051,12 +2050,12 @@ static struct xdma_request_cb * xdma_init_request(struct sg_table *sgt,
 	if (!req)
 		return NULL;
 
-	req->sgt = sgt;	
+	req->sgt = sgt;
 	req->ep_addr = ep_addr;
 
 	for (i = 0, sg = sgt->sgl;  i < sgt->nents; i++, sg = sg_next(sg)) {
 		unsigned int tlen = sg_dma_len(sg);
-		dma_addr_t addr = sg_dma_address(sg);	
+		dma_addr_t addr = sg_dma_address(sg);
 
 		req->total_len += tlen;
 		while (tlen) {
@@ -2064,7 +2063,7 @@ static struct xdma_request_cb * xdma_init_request(struct sg_table *sgt,
 			if (tlen > desc_blen_max) {
 				req->sdesc[j].len = desc_blen_max;
 				addr += desc_blen_max;
-				tlen -= desc_blen_max;	
+				tlen -= desc_blen_max;
 			} else {
 				req->sdesc[j].len = tlen;
 				tlen = 0;
@@ -2178,7 +2177,7 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 		unsigned long flags;
 		struct xdma_transfer *xfer;
 
-		/* build transfer */	
+		/* build transfer */
 		rv = transfer_init(engine, req);
 		if (rv < 0) {
 			mutex_unlock(&engine->desc_lock);
@@ -2557,12 +2556,12 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	xdev_list_add(xdev);
 
 	if (xdev->h2c_channel_max == 0 ||
-	    xdev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX) 
+	    xdev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX)
 		xdev->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
 	if (xdev->c2h_channel_max == 0 ||
-	    xdev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX) 
+	    xdev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX)
 		xdev->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
-		
+
 	rv = pci_enable_device(pdev);
 	if (rv) {
 		dbg_init("pci_enable_device() failed, %d.\n", rv);
@@ -2710,7 +2709,7 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 		unsigned long flags;
 
 		engine = &xdev->engine_h2c[i];
-		
+
 		if (engine->magic == MAGIC_ENGINE) {
 			spin_lock_irqsave(&engine->lock, flags);
 			engine->shutdown |= ENGINE_SHUTDOWN_REQUEST;
