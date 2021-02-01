@@ -206,6 +206,9 @@ static void xdma_request_cb_dump(struct xdma_request_cb *req)
 			req->sdesc[i].len);
 }
 #else
+static void xdma_request_cb_dump(struct xdma_request_cb *req) {}
+static void transfer_dump(struct xdma_transfer *transfer) {}
+static void sgt_dump(struct sg_table *sgt) {}
 #define write_register(v, mem, off) iowrite32(v, mem)
 #endif /* __LIBXDMA_DEBUG__ */
 
@@ -1986,17 +1989,13 @@ static struct xdma_request_cb * xdma_init_request(struct sg_table *sgt,
 
 	if (unlikely(j > max)) {
 		pr_err("too many sdesc %d > %d\n", j, max);
-#ifdef __LIBXDMA_DEBUG__
 		xdma_request_cb_dump(req);
-#endif
 		xdma_request_free(req);
 		return NULL;
 	}
 
 	req->sw_desc_cnt = j;
-#ifdef __LIBXDMA_DEBUG__
 	xdma_request_cb_dump(req);
-#endif
 	return req;
 }
 
@@ -2109,9 +2108,7 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 			xfer->len, req->ep_addr, done, req->sw_desc_idx,
 			req->sw_desc_cnt);
 
-#ifdef __LIBXDMA_DEBUG__
 		transfer_dump(xfer);
-#endif
 
 		rv = transfer_queue(engine, xfer);
 		if (rv < 0) {
@@ -2140,10 +2137,8 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 				 xfer, xfer->len, req->ep_addr - xfer->len);
 			spin_unlock_irqrestore(&engine->lock, flags);
 
-#ifdef __LIBXDMA_DEBUG__
 			transfer_dump(xfer);
 			sgt_dump(sgt);
-#endif
 			rv = -EIO;
 			break;
 		default:
@@ -2156,10 +2151,8 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 			xdma_engine_stop(engine);
 			spin_unlock_irqrestore(&engine->lock, flags);
 
-#ifdef __LIBXDMA_DEBUG__
 			transfer_dump(xfer);
 			sgt_dump(sgt);
-#endif
 			rv = -ERESTARTSYS;
 			break;
 		}
