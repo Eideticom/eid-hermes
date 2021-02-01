@@ -2263,9 +2263,9 @@ static void sgt_dump(struct sg_table *sgt)
 	struct scatterlist *sg = sgt->sgl;
 
 	pr_info("sgt 0x%p, sgl 0x%p, nents %u/%u.\n",
-		sgt, sgt->sgl, sgt->nents, sgt->orig_nents);
+		sgt, sgt->sgl, sgt->nents, sgt->nents);
 
-	for (i = 0; i < sgt->orig_nents; i++, sg = sg_next(sg))
+	for (i = 0; i < sgt->nents; i++, sg = sg_next(sg))
 		pr_info("%d, 0x%p, pg 0x%p,%u+%u, dma 0x%llx,%u.\n",
 			i, sg, sg_page(sg), sg->offset, sg->length,
 			sg_dma_address(sg), sg_dma_len(sg)); 
