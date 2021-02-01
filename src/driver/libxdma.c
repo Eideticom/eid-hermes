@@ -903,7 +903,6 @@ static int map_single_bar(struct xdma_dev *xdev, struct pci_dev *dev, int idx)
 
 	/* do not map BARs with length 0. Note that start MAY be 0! */
 	if (!bar_len) {
-		//pr_info("BAR #%d is not present - skipping\n", idx);
 		return 0;
 	}
 
@@ -1961,8 +1960,6 @@ static struct xdma_request_cb * xdma_init_request(struct sg_table *sgt,
 			extra += (len + desc_blen_max - 1) / desc_blen_max;
 	}
 
-//pr_info("ep 0x%llx, desc %u+%u.\n", ep_addr, max, extra);
-
 	max += extra;
 	req = xdma_request_alloc(max);
 	if (!req)
@@ -2159,7 +2156,6 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 			pr_info("xfer 0x%p,%u, s 0x%x timed out, ep 0x%llx.\n",
 				 xfer, xfer->len, xfer->state, req->ep_addr);
 			engine_status_read(engine, 0, 1);
-			//engine_status_dump(engine);
 			transfer_abort(engine, xfer);
 
 			xdma_engine_stop(engine);

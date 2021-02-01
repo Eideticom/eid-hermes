@@ -377,8 +377,6 @@ struct xdma_engine {
 	struct xdma_dev *xdev;	/* parent device */
 	char name[5];		/* name of this engine */
 	int version;		/* version of this engine */
-	//dev_t cdevno;		/* character device major:minor */
-	//struct cdev cdev;	/* character device (embedded struct) */
 
 	/* HW register address offsets */
 	struct engine_regs *regs;		/* Control reg BAR offset */
