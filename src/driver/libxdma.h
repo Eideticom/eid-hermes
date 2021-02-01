@@ -458,22 +458,6 @@ static inline int xdma_device_flag_check(struct xdma_dev *xdev, unsigned int f)
 	return 0;
 }
 
-static inline int xdma_device_flag_test_n_set(struct xdma_dev *xdev,
-					 unsigned int f)
-{
-	unsigned long flags;
-	int rv = 0;
-
-	spin_lock_irqsave(&xdev->lock, flags);
-	if (xdev->flags & f) {
-		spin_unlock_irqrestore(&xdev->lock, flags);
-		rv = 1;
-	} else
-		xdev->flags |= f;
-	spin_unlock_irqrestore(&xdev->lock, flags);
-	return rv;
-}
-
 static inline void xdma_device_flag_set(struct xdma_dev *xdev, unsigned int f)
 {
 	unsigned long flags;
