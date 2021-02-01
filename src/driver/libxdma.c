@@ -1737,9 +1737,6 @@ static void engine_init_regs(struct xdma_engine *engine)
 	reg_value |= XDMA_CTRL_IE_DESC_STOPPED;
 	reg_value |= XDMA_CTRL_IE_DESC_COMPLETED;
 
-	if (engine->streaming && engine->dir == DMA_FROM_DEVICE)
-		reg_value |= XDMA_CTRL_IE_IDLE_STOPPED;
-
 	/* Apply engine configurations */
 	write_register(reg_value, &engine->regs->interrupt_enable_mask,
 			(unsigned long)(&engine->regs->interrupt_enable_mask) -
@@ -1792,14 +1789,15 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 	engine->sgdma_regs = xdev->bar[xdev->config_bar_idx] + offset +
 				SGDMA_OFFSET_FROM_CHANNEL;
 	val = read_register(&engine->regs->identifier);
-        if (val & 0x8000U)
-		engine->streaming = 1;
+        if (val & 0x8000U) {
+		pr_warn("Hermes does not support XDMA streaming mode.\n");
+		return -ENOTSUPP;
+	}
 
 	/* remember SG DMA direction */
 	engine->dir = dir;
-	sprintf(engine->name, "%d-%s%d-%s", xdev->idx,
-		(dir == DMA_TO_DEVICE) ? "H2C" : "C2H", channel,
-		engine->streaming ? "ST" : "MM");
+	sprintf(engine->name, "%d-%s%d-MM", xdev->idx,
+		(dir == DMA_TO_DEVICE) ? "H2C" : "C2H", channel);
 
 	dbg_init("engine %p name %s irq_bitmask=0x%08x\n", engine, engine->name,
 		(int)engine->irq_bitmask);

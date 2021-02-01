@@ -390,7 +390,6 @@ struct xdma_engine {
 	int device_open;	/* flag if engine node open, ST mode only */
 	int running;		/* flag if the driver started engine */
 	int non_incr_addr;	/* flag if non-incremental addressing used */
-	int streaming;
 	int addr_align;		/* source/dest alignment in bytes */
 	int len_granularity;	/* transfer length multiple */
 	int addr_bits;		/* HW datapath address width */
