@@ -527,9 +527,6 @@ static void engine_service_shutdown(struct xdma_engine *engine)
 	dbg_tfr("engine just went idle, resetting RUN_STOP.\n");
 	xdma_engine_stop(engine);
 	engine->running = 0;
-
-	/* awake task on engine's shutdown wait queue */
-	wake_up_interruptible(&engine->shutdown_wq);
 }
 
 struct xdma_transfer *engine_transfer_completion(struct xdma_engine *engine,
@@ -710,8 +707,6 @@ static void engine_service_resume(struct xdma_engine *engine)
 		/* engine was requested to be shutdown? */
 		} else if (engine->shutdown & ENGINE_SHUTDOWN_REQUEST) {
 			engine->shutdown |= ENGINE_SHUTDOWN_IDLE;
-			/* awake task on engine's shutdown wait queue */
-			wake_up_interruptible(&engine->shutdown_wq);
 		} else {
 			dbg_tfr("no pending transfers, %s engine stays idle.\n",
 				engine->name);
@@ -873,7 +868,6 @@ static irqreturn_t xdma_channel_irq(int irq, void *dev_id)
 	/* Schedule the bottom half */
 	schedule_work(&engine->work);
 
-	xdev->irq_count++;
 	return IRQ_HANDLED;
 }
 
@@ -1612,9 +1606,6 @@ static int transfer_queue(struct xdma_engine *engine,
 	/* lock the engine state */
 	spin_lock_irqsave(&engine->lock, flags);
 
-	engine->prev_cpu = get_cpu();
-	put_cpu();
-
 	/* engine is being shutdown; do not accept new transfers */
 	if (engine->shutdown & ENGINE_SHUTDOWN_REQUEST) {
 		pr_info("engine %s offline, transfer 0x%p not queued.\n",
@@ -1671,12 +1662,10 @@ static void engine_alignments(struct xdma_engine *engine)
 	if (w) {
 		engine->addr_align = align_bytes;
 		engine->len_granularity = granularity_bytes;
-		engine->addr_bits = address_bits;
 	} else {
 		/* Some default values if alignments are unspecified */
 		engine->addr_align = 1;
 		engine->len_granularity = 1;
-		engine->addr_bits = 64;
 	}
 }
 
@@ -1713,8 +1702,6 @@ static void engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 	engine_free_resource(engine);
 
 	memset(engine, 0, sizeof(struct xdma_engine));
-	/* Decrement the number of engines available */
-	xdev->engines_num--;
 }
 
 static void engine_init_regs(struct xdma_engine *engine)
@@ -1778,10 +1765,6 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 
 	engine->channel = channel;
 
-	/* engine interrupt request bit */
-	engine->irq_bitmask = (1 << XDMA_ENG_IRQ_NUM) - 1;
-	engine->irq_bitmask <<= (xdev->engines_num * XDMA_ENG_IRQ_NUM);
-
 	/* parent */
 	engine->xdev = xdev;
 	/* register address */
@@ -1799,17 +1782,8 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 	sprintf(engine->name, "%d-%s%d-MM", xdev->idx,
 		(dir == DMA_TO_DEVICE) ? "H2C" : "C2H", channel);
 
-	dbg_init("engine %p name %s irq_bitmask=0x%08x\n", engine, engine->name,
-		(int)engine->irq_bitmask);
-
 	/* initialize the deferred work for transfer completion */
 	INIT_WORK(&engine->work, engine_service_work);
-
-	if (dir == DMA_TO_DEVICE)
-		xdev->mask_irq_h2c |= engine->irq_bitmask;
-	else
-		xdev->mask_irq_c2h |= engine->irq_bitmask;
-	xdev->engines_num++;
 
 	rv = engine_alloc_resource(engine);
 	if (rv)
@@ -2253,7 +2227,6 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 		spin_lock_init(&engine->lock);
 		mutex_init(&engine->desc_lock);
 		INIT_LIST_HEAD(&engine->transfer_list);
-		init_waitqueue_head(&engine->shutdown_wq);
 	}
 
 	engine = xdev->engine_c2h;
@@ -2261,7 +2234,6 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 		spin_lock_init(&engine->lock);
 		mutex_init(&engine->desc_lock);
 		INIT_LIST_HEAD(&engine->transfer_list);
-		init_waitqueue_head(&engine->shutdown_wq);
 	}
 
 	return xdev;

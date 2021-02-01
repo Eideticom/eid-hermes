@@ -387,14 +387,11 @@ struct xdma_engine {
 	/* Engine state, configuration and flags */
 	enum shutdown_state shutdown;	/* engine shutdown mode */
 	enum dma_data_direction dir;
-	int device_open;	/* flag if engine node open, ST mode only */
 	int running;		/* flag if the driver started engine */
 	int non_incr_addr;	/* flag if non-incremental addressing used */
 	int addr_align;		/* source/dest alignment in bytes */
 	int len_granularity;	/* transfer length multiple */
-	int addr_bits;		/* HW datapath address width */
 	int channel;		/* engine indices */
-	int max_extra_adj;	/* descriptor prefetch capability */
 	int desc_dequeued;	/* num descriptors of completed transfers */
 	u32 status;		/* last known status of device */
 	/* only used for MSIX mode to store per-engine interrupt mask value */
@@ -403,16 +400,9 @@ struct xdma_engine {
 	/* Transfer list management */
 	struct list_head transfer_list;	/* queue of transfers */
 
-	int rx_tail;	/* follows the HW */
-	int rx_head;	/* where the SW reads from */
-	int rx_overrun;	/* flag if overrun occured */
-
 	/* Members associated with interrupt mode support */
-	wait_queue_head_t shutdown_wq;	/* wait queue for shutdown sync */
 	spinlock_t lock;		/* protects concurrent access */
-	int prev_cpu;			/* remember CPU# of (last) locker */
 	int msix_irq_line;		/* MSI-X vector for this engine */
-	u32 irq_bitmask;		/* IRQ bit mask for this engine */
 	struct work_struct work;	/* Work queue for interrupt handling */
 
 	struct mutex desc_lock;		/* protects concurrent access */
@@ -445,22 +435,14 @@ struct xdma_dev {
 	int h2c_channel_max;
 
 	/* Interrupt management */
-	int irq_count;		/* interrupt counter */
 	int irq_line;		/* flag if irq allocated successfully */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
 	struct msix_entry entry[32];	/* msi-x vector/entry table */
 #endif
 
 	/* XDMA engine management */
-	int engines_num;	/* Total engine count */
-	u32 mask_irq_h2c;
-	u32 mask_irq_c2h;
 	struct xdma_engine engine_h2c[XDMA_CHANNEL_NUM_MAX];
 	struct xdma_engine engine_c2h[XDMA_CHANNEL_NUM_MAX];
-
-	/* SD_Accel specific */
-	enum dev_capabilities capabilities;
-	u64 feature_id;
 };
 
 static inline int xdma_device_flag_check(struct xdma_dev *xdev, unsigned int f)
