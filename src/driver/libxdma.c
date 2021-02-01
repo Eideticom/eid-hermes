@@ -387,11 +387,6 @@ static void xdma_engine_stop(struct xdma_engine *engine)
 	w |= (u32)XDMA_CTRL_IE_DESC_STOPPED;
 	w |= (u32)XDMA_CTRL_IE_DESC_COMPLETED;
 
-	/* Disable IDLE STOPPED for MM */
-	if ((engine->streaming && (engine->dir == DMA_FROM_DEVICE)) ||
-	    (engine->xdma_perf))
-		w |= (u32)XDMA_CTRL_IE_IDLE_STOPPED;
-
 	dbg_tfr("Stopping SG DMA %s engine; writing 0x%08x to 0x%p.\n",
 			engine->name, w, (u32 *)&engine->regs->control);
 	write_register(w, &engine->regs->control,
@@ -410,21 +405,6 @@ static void engine_start_mode_config(struct xdma_engine *engine)
 		return;
 	}
 
-	/* If a perf test is running, enable the engine interrupts */
-	if (engine->xdma_perf) {
-		w = XDMA_CTRL_IE_DESC_STOPPED;
-		w |= XDMA_CTRL_IE_DESC_COMPLETED;
-		w |= XDMA_CTRL_IE_DESC_ALIGN_MISMATCH;
-		w |= XDMA_CTRL_IE_MAGIC_STOPPED;
-		w |= XDMA_CTRL_IE_IDLE_STOPPED;
-		w |= XDMA_CTRL_IE_READ_ERROR;
-		w |= XDMA_CTRL_IE_DESC_ERROR;
-
-		write_register(w, &engine->regs->interrupt_enable_mask,
-			(unsigned long)(&engine->regs->interrupt_enable_mask) -
-			(unsigned long)(&engine->regs));
-	}
-
 	/* write control register of SG DMA engine */
 	w = (u32)XDMA_CTRL_RUN_STOP;
 	w |= (u32)XDMA_CTRL_IE_READ_ERROR;
@@ -435,9 +415,6 @@ static void engine_start_mode_config(struct xdma_engine *engine)
 	w |= (u32)XDMA_CTRL_IE_DESC_STOPPED;
 	w |= (u32)XDMA_CTRL_IE_DESC_COMPLETED;
 
-	if ((engine->streaming && (engine->dir == DMA_FROM_DEVICE)) ||
-	    (engine->xdma_perf))
-		w |= (u32)XDMA_CTRL_IE_IDLE_STOPPED;
 	/* set non-incremental addressing mode */
 	if (engine->non_incr_addr)
 		w |= (u32)XDMA_CTRL_NON_INCR_ADDR;
@@ -707,35 +684,6 @@ transfer_del:
 	return transfer;
 }
 
-static void engine_service_perf(struct xdma_engine *engine, u32 desc_completed)
-{
-	if (unlikely(!engine)) {
-		pr_err("engine NULL.\n");
-		return;
-	}
-
-	/* performance measurement is running? */
-	if (engine->xdma_perf) {
-		/* a descriptor was completed? */
-		if (engine->status & XDMA_STAT_DESC_COMPLETED) {
-			engine->xdma_perf->iterations = desc_completed;
-			dbg_perf("transfer->xdma_perf->iterations=%d\n",
-				engine->xdma_perf->iterations);
-		}
-
-		/* a descriptor stopped the engine? */
-		if (engine->status & XDMA_STAT_DESC_STOPPED) {
-			engine->xdma_perf->stopped = 1;
-			/*
-			 * wake any XDMA_PERF_IOCTL_STOP waiting for
-			 * the performance run to finish
-			 */
-			wake_up_interruptible(&engine->xdma_perf_wq);
-			dbg_perf("transfer->xdma_perf stopped\n");
-		}
-	}
-}
-
 static void engine_service_resume(struct xdma_engine *engine)
 {
 	struct xdma_transfer *transfer_started;
@@ -835,8 +783,6 @@ static int engine_service(struct xdma_engine *engine)
 		dbg_tfr("Engine completed %d desc, %d not yet dequeued\n",
 			(int)desc_count,
 			(int)desc_count - engine->desc_dequeued);
-
-		engine_service_perf(engine, desc_count);
 	}
 
 	/* account for already dequeued transfers during this engine run */
@@ -2310,7 +2256,6 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 		mutex_init(&engine->desc_lock);
 		INIT_LIST_HEAD(&engine->transfer_list);
 		init_waitqueue_head(&engine->shutdown_wq);
-		init_waitqueue_head(&engine->xdma_perf_wq);
 	}
 
 	engine = xdev->engine_c2h;
@@ -2319,7 +2264,6 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 		mutex_init(&engine->desc_lock);
 		INIT_LIST_HEAD(&engine->transfer_list);
 		init_waitqueue_head(&engine->shutdown_wq);
-		init_waitqueue_head(&engine->xdma_perf_wq);
 	}
 
 	return xdev;

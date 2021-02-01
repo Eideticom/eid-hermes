@@ -404,9 +404,6 @@ struct xdma_engine {
 	/* Transfer list management */
 	struct list_head transfer_list;	/* queue of transfers */
 
-	u8 *perf_buf_virt;
-	dma_addr_t perf_buf_bus; /* bus address */
-
 	int rx_tail;	/* follows the HW */
 	int rx_head;	/* where the SW reads from */
 	int rx_overrun;	/* flag if overrun occured */
@@ -422,10 +419,6 @@ struct xdma_engine {
 	struct mutex desc_lock;		/* protects concurrent access */
 	dma_addr_t desc_bus;
 	struct xdma_desc *desc;
-
-	/* for performance test support */
-	struct xdma_performance_ioctl *xdma_perf;	/* perf test control */
-	wait_queue_head_t xdma_perf_wq;	/* Perf test sync */
 };
 
 /* XDMA PCIe device specific book-keeping */
