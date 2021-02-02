@@ -32,13 +32,13 @@
 #include "libxdma.h"
 #include "hermes_mod.h"
 #include "xdma_sgdma.h"
-#include "version.h"
 
+#define DRV_MODULE_VERSION	"v0.1"
 #define DRV_MODULE_NAME		"hermes"
 #define DRV_MODULE_DESC		"Hermes driver"
 
 static char version[] =
-	DRV_MODULE_DESC " " DRV_MODULE_NAME " v" DRV_MODULE_VERSION "\n";
+	DRV_MODULE_DESC " " DRV_MODULE_NAME " " DRV_MODULE_VERSION "\n";
 
 MODULE_AUTHOR("Xilinx, Inc.");
 MODULE_AUTHOR("Eideticom Inc.");

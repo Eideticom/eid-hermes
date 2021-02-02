@@ -40,10 +40,6 @@
  * if the config bar is fixed, the driver does not neeed to search through
  * all of the bars
  */
-//#define XDMA_CONFIG_BAR_NUM	1
-
-/* Switch debug printing on/off */
-#define XDMA_DEBUG		0
 
 /* SECTION: Preprocessor macros/constants */
 #define XDMA_BAR_NUM		(6)
@@ -58,7 +54,6 @@
  */
 #define XDMA_ENG_IRQ_NUM	(1)
 #define MAX_EXTRA_ADJ		(0x3F)
-#define RX_STATUS_EOP		(1)
 
 /* Target internal components on XDMA control BAR */
 #define XDMA_OFS_INT_CTRL	(0x2000UL)
@@ -147,19 +142,9 @@
 #define XDMA_DESC_COMPLETED	(1UL << 1)
 #define XDMA_DESC_EOP		(1UL << 4)
 
-#define XDMA_PERF_RUN	(1UL << 0)
-#define XDMA_PERF_CLEAR	(1UL << 1)
-#define XDMA_PERF_AUTO	(1UL << 2)
-
-#define MAGIC_ENGINE	0xEEEEEEEEUL
-#define MAGIC_DEVICE	0xDDDDDDDDUL
-
 /* upper 16-bits of engine identifier register */
 #define XDMA_ID_H2C 0x1fc0U
 #define XDMA_ID_C2H 0x1fc1U
-
-/* for C2H AXI-ST mode */
-#define CYCLIC_RX_PAGES_MAX	256
 
 #define LS_BYTE_MASK 0x000000FFUL
 
@@ -169,17 +154,11 @@
 #define IRQ_BLOCK_ID 0x1fc20000UL
 #define CONFIG_BLOCK_ID 0x1fc30000UL
 
-#define MAX_DESC_BUS_ADDR (0xffffffffULL)
-
 #define DESC_MAGIC 0xAD4B0000UL
 
-#define C2H_WB 0x52B4UL
-
-#define MAX_NUM_ENGINES (XDMA_CHANNEL_NUM_MAX * 2)
 #define H2C_CHANNEL_OFFSET 0x1000
 #define SGDMA_OFFSET_FROM_CHANNEL 0x4000
 #define CHANNEL_SPACING 0x100
-#define TARGET_SPACING 0x1000
 
 /* obtain the 32 most significant (high) bits of a 32-bit or 64-bit address */
 #define PCI_DMA_H(addr) ((addr >> 16) >> 16)
@@ -376,7 +355,6 @@ struct xdma_transfer {
 	enum transfer_state state;	/* state of the transfer */
 	unsigned int flags;
 #define XFER_FLAG_NEED_UNMAP	0x1
-	int cyclic;			/* flag if transfer is cyclic */
 	int last_in_request;		/* flag if last within request */
 	unsigned int len;
 	struct sg_table *sgt;
@@ -426,23 +404,12 @@ struct xdma_engine {
 	/* Transfer list management */
 	struct list_head transfer_list;	/* queue of transfers */
 
-	/* Members applicable to AXI-ST C2H (cyclic) transfers */
-	struct xdma_result *cyclic_result;
-	dma_addr_t cyclic_result_bus;	/* bus addr for transfer */
-	struct xdma_request_cb *cyclic_req; 
-	struct sg_table cyclic_sgt; 
-
 	u8 *perf_buf_virt;
 	dma_addr_t perf_buf_bus; /* bus address */
-
-	u8 eop_found; /* used only for cyclic(rx:c2h) */
 
 	int rx_tail;	/* follows the HW */
 	int rx_head;	/* where the SW reads from */
 	int rx_overrun;	/* flag if overrun occured */
-
-	/* for copy from cyclic buffer to user buffer */
-	unsigned int user_buffer_index;
 
 	/* Members associated with interrupt mode support */
 	wait_queue_head_t shutdown_wq;	/* wait queue for shutdown sync */
@@ -558,18 +525,6 @@ struct xdma_dev *xdev_find_by_pdev(struct pci_dev *pdev);
 
 void xdma_device_offline(struct pci_dev *pdev, void *dev_handle);
 void xdma_device_online(struct pci_dev *pdev, void *dev_handle);
-
-int xdma_performance_submit(struct xdma_dev *xdev, struct xdma_engine *engine);
-struct xdma_transfer *engine_cyclic_stop(struct xdma_engine *engine);
-void enable_perf(struct xdma_engine *engine);
-void get_perf_stats(struct xdma_engine *engine);
-
-int xdma_cyclic_transfer_setup(struct xdma_engine *engine);
-int xdma_cyclic_transfer_teardown(struct xdma_engine *engine);
-ssize_t xdma_engine_read_cyclic(struct xdma_engine *engine, char __user *buf,
-				size_t count, int timeout_ms);
-int engine_addrmode_set(struct xdma_engine *engine, unsigned long arg);
-
 /*
  * xdma_device_open - read the pci bars and configure the fpga
  *	should be called from probe()

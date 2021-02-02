@@ -211,58 +211,6 @@ static u32 read_interrupts(struct xdma_dev *xdev)
 	return build_u32(0, lo);
 }
 
-void enable_perf(struct xdma_engine *engine)
-{
-	u32 w;
-
-	w = XDMA_PERF_CLEAR;
-	write_register(w, &engine->regs->perf_ctrl,
-			(unsigned long)(&engine->regs->perf_ctrl) -
-			(unsigned long)(&engine->regs));
-	read_register(&engine->regs->identifier);
-	w = XDMA_PERF_AUTO | XDMA_PERF_RUN;
-	write_register(w, &engine->regs->perf_ctrl,
-			(unsigned long)(&engine->regs->perf_ctrl) -
-			(unsigned long)(&engine->regs));
-	read_register(&engine->regs->identifier);
-
-	dbg_perf("IOCTL_XDMA_PERF_START\n");
-
-}
-
-void get_perf_stats(struct xdma_engine *engine)
-{
-	u32 hi;
-	u32 lo;
-
-	if (unlikely(!engine)) {
-		pr_err("engine NULL.\n");
-		return;
-	}
-
-	if (!engine->xdma_perf) {
-		pr_info("%s perf struct not set up.\n", engine->name);
-		return;
-	}
-
-	hi = 0;
-	lo = read_register(&engine->regs->completed_desc_count);
-	engine->xdma_perf->iterations = build_u64(hi, lo);
-
-	hi = read_register(&engine->regs->perf_cyc_hi);
-	lo = read_register(&engine->regs->perf_cyc_lo);
-
-	engine->xdma_perf->clock_cycle_count = build_u64(hi, lo);
-
-	hi = read_register(&engine->regs->perf_dat_hi);
-	lo = read_register(&engine->regs->perf_dat_lo);
-	engine->xdma_perf->data_cycle_count = build_u64(hi, lo);
-
-	hi = read_register(&engine->regs->perf_pnd_hi);
-	lo = read_register(&engine->regs->perf_pnd_lo);
-	engine->xdma_perf->pending_count = build_u64(hi, lo);
-}
-
 static void engine_reg_dump(struct xdma_engine *engine)
 {
 	u32 w;
@@ -305,13 +253,6 @@ static void engine_reg_dump(struct xdma_engine *engine)
 		engine->name, &engine->regs->interrupt_enable_mask, w);
 }
 
-/**
- * engine_status_read() - read status of SG DMA engine (optionally reset)
- *
- * Stores status in engine->status.
- *
- * @return -1 on failure, status register otherwise
- */
 static void engine_status_dump(struct xdma_engine *engine)
 {
 	u32 v = engine->status;
@@ -320,7 +261,7 @@ static void engine_status_dump(struct xdma_engine *engine)
 	int len = 0;
 
 	len = sprintf(buf, "SG engine %s status: 0x%08x: ", engine->name, v);
-	
+
 	if ((v & XDMA_STAT_BUSY))
 		len += sprintf(buf + len, "BUSY,");
 	if ((v & XDMA_STAT_DESC_STOPPED))
@@ -366,7 +307,6 @@ static void engine_status_dump(struct xdma_engine *engine)
 				len += sprintf(buf + len, "SLAVE_ERR ");
 			buf[len - 1] = ',';
 		}
-		
 	} else {
 		/* C2H only */
 		if ((v & XDMA_STAT_C2H_R_ERR_MASK)) {
@@ -399,6 +339,11 @@ static void engine_status_dump(struct xdma_engine *engine)
 	pr_info("%s\n", buffer);
 }
 
+/**
+ * engine_status_read() - read status of SG DMA engine (optionally reset)
+ *
+ * Stores status in engine->status.
+ */
 static void engine_status_read(struct xdma_engine *engine, bool clr, bool dump)
 {
 	if (unlikely(!engine)) {
@@ -599,14 +544,6 @@ static struct xdma_transfer *engine_start(struct xdma_engine *engine)
 	return transfer;
 }
 
-/**
- * engine_service() - service an SG DMA engine
- *
- * must be called with engine->lock already acquired
- *
- * @engine pointer to struct xdma_engine
- *
- */
 static void engine_service_shutdown(struct xdma_engine *engine)
 {
 	/* if the engine stopped with RUN still asserted, de-assert RUN now */
@@ -651,8 +588,7 @@ struct xdma_transfer *engine_service_transfer_list(struct xdma_engine *engine,
 	 * iterate over all the transfers completed by the engine,
 	 * except for the last (i.e. use > instead of >=).
 	 */
-	while (transfer && (!transfer->cyclic) &&
-		(*pdesc_completed > transfer->desc_num)) {
+	while (transfer && (*pdesc_completed > transfer->desc_num)) {
 		/* remove this transfer from pdesc_completed */
 		*pdesc_completed -= transfer->desc_num;
 		dbg_tfr("%s engine completed non-cyclic xfer 0x%p (%d desc)\n",
@@ -704,7 +640,7 @@ static void engine_err_handle(struct xdma_engine *engine,
 			"%s, s 0x%x, aborted xfer 0x%p, cmpl %d/%d\n",
 			engine->name, engine->status, transfer, desc_completed,
 			transfer->desc_num);
-	
+
 	/* mark transfer as failed */
 	transfer->state = TRANSFER_STATE_FAILED;
 	xdma_engine_stop(engine);
@@ -746,13 +682,12 @@ struct xdma_transfer *engine_service_final_transfer(struct xdma_engine *engine,
 		dbg_tfr("*pdesc_completed=%d, transfer->desc_num=%d",
 			*pdesc_completed, transfer->desc_num);
 
-		if (!transfer->cyclic) {
-			/*
-			 * if the engine stopped on this transfer,
-			 * it should be the last
-			 */
-			WARN_ON(*pdesc_completed > transfer->desc_num);
-		}
+		/*
+		 * if the engine stopped on this transfer,
+		 * it should be the last
+		 */
+		WARN_ON(*pdesc_completed > transfer->desc_num);
+
 		/* mark transfer as succesfully completed */
 		transfer->state = TRANSFER_STATE_COMPLETED;
 	}
@@ -800,132 +735,6 @@ static void engine_service_perf(struct xdma_engine *engine, u32 desc_completed)
 		}
 	}
 }
-
-static void engine_transfer_dequeue(struct xdma_engine *engine)
-{
-	struct xdma_transfer *transfer;
-
-	if (unlikely(!engine)) {
-		pr_err("engine NULL.\n");
-		return;
-	}
-
-	/* pick first transfer on the queue (was submitted to the engine) */
-	transfer = list_entry(engine->transfer_list.next, struct xdma_transfer,
-		entry);
-	if (!transfer || transfer != &engine->cyclic_req->xfer) {
-		pr_info("%s, xfer 0x%p != 0x%p.\n",
-			engine->name, transfer, &engine->cyclic_req->xfer);
-		return;
-	}
-	dbg_tfr("%s engine completed cyclic transfer 0x%p (%d desc).\n",
-		engine->name, transfer, transfer->desc_num);
-	/* remove completed transfer from list */
-	list_del(engine->transfer_list.next);
-}
-
-static int engine_ring_process(struct xdma_engine *engine)
-{
-	struct xdma_result *result;
-	int start;
-	int eop_count = 0;
-
-	if (unlikely(!engine || !engine->cyclic_result)) {
-		pr_err("engine 0x%p, cyclic_result 0x%p.\n",
-			engine, engine ? engine->cyclic_result : NULL);
-		return -EINVAL;
-	}
-	result = engine->cyclic_result;
-
-	/* where we start receiving in the ring buffer */
-	start = engine->rx_tail;
-
-	/* iterate through all newly received RX result descriptors */
-	dbg_tfr("%s, result %d, 0x%x, len 0x%x.\n",
-		engine->name, engine->rx_tail, result[engine->rx_tail].status,
-		result[engine->rx_tail].length);
-	while (result[engine->rx_tail].status && !engine->rx_overrun) {
-		/* EOP bit set in result? */
-		if (result[engine->rx_tail].status & RX_STATUS_EOP){
-			eop_count++;
-		}
-
-		/* increment tail pointer */
-		engine->rx_tail = (engine->rx_tail + 1) % CYCLIC_RX_PAGES_MAX;
-
-		dbg_tfr("%s, head %d, tail %d, 0x%x, len 0x%x.\n",
-			engine->name, engine->rx_head, engine->rx_tail,
-			result[engine->rx_tail].status,
-			result[engine->rx_tail].length);
-
-		/* overrun? */
-		if (engine->rx_tail == engine->rx_head) {
-			dbg_tfr("%s: overrun\n", engine->name);
-			/* flag to user space that overrun has occurred */
-			engine->rx_overrun = 1;
-		}
-	}
-
-	return eop_count;
-}
-
-static int engine_service_cyclic_interrupt(struct xdma_engine *engine)
-{
-	int eop_count = 0;
-	struct xdma_transfer *xfer;
-
-	if (unlikely(!engine || (engine->magic != MAGIC_ENGINE))) {
-		pr_err("bad engine 0x%p, magic 0x%lx.\n",
-			engine, engine ? engine->magic : 0UL);
-		return -EINVAL;
-	}
-
-	engine_status_read(engine, 1, 0);
-
-	eop_count = engine_ring_process(engine);
-	/*
-	 * wake any reader on EOP, as one or more packets are now in
-	 * the RX buffer
-	 */
-	xfer = &engine->cyclic_req->xfer;
-	if (eop_count > 0) {
-		/* awake task on transfer's wait queue */
-		dbg_tfr("wake_up_interruptible() due to %d EOP's\n",
-			eop_count);
-		engine->eop_found = 1;
-		wake_up_interruptible(&xfer->wq);
-	}
-
-	/* engine was running but is no longer busy? */
-	if ((engine->running) && !(engine->status & XDMA_STAT_BUSY)) {
-		/* transfers on queue? */
-		if (!list_empty(&engine->transfer_list))
-			engine_transfer_dequeue(engine);
-
-		engine_service_shutdown(engine);
-	}
-
-	return 0;
-}
-
-/* must be called with engine->lock already acquired */
-static int engine_service_cyclic(struct xdma_engine *engine)
-{
-	int rc = 0;
-
-	dbg_tfr("engine_service_cyclic()");
-
-	if (unlikely(!engine || (engine->magic != MAGIC_ENGINE))) {
-		pr_err("bad engine 0x%p, magic 0x%lx.\n",
-			engine, engine ? engine->magic : 0UL);
-		return -EINVAL;
-	}
-
-	rc = engine_service_cyclic_interrupt(engine);
-
-	return rc;
-}
-
 
 static void engine_service_resume(struct xdma_engine *engine)
 {
@@ -1066,10 +875,7 @@ static void engine_service_work(struct work_struct *work)
 
 	dbg_tfr("engine_service() for %s engine %p\n",
 		engine->name, engine);
-	if (engine->cyclic_req)
-                engine_service_cyclic(engine);
-	else
-		engine_service(engine);
+	engine_service(engine);
 
 	/* re-enable interrupts for this engine */
 	write_register(engine->interrupt_enable_mask_value,
@@ -1758,26 +1564,13 @@ static int xdma_desc_control_set(struct xdma_desc *first, u32 control_field)
 	return 0;
 }
 
-/* xdma_desc_clear -- Clear bits in control field of a descriptor. */
-static void xdma_desc_control_clear(struct xdma_desc *first, u32 clear_mask)
-{
-	/* remember magic and adjacent number */
-	u32 control = le32_to_cpu(first->control);
-
-	/* merge adjacent and control field */
-	control &= (~clear_mask);
-	/* write control and next_adjacent */
-	first->control = cpu_to_le32(control);
-}
-
-/* xdma_desc() - Fill a descriptor with the transfer details
+/* xdma_desc_set() - Fill a descriptor with the transfer details
  *
  * @desc pointer to descriptor to be filled
- * @addr root complex address
+ * @rc_bus_addr root complex address
  * @ep_addr end point address
  * @len number of bytes, must be a (non-negative) multiple of 4.
  * @dir, dma direction
- * is the end point address. If zero, vice versa.
  *
  * Does not modify the next pointer
  */
@@ -1954,13 +1747,6 @@ static void engine_free_resource(struct xdma_engine *engine)
 			engine->desc, engine->desc_bus);
 		engine->desc = NULL;
 	}
-
-	if (engine->cyclic_result) {
-		dma_free_coherent(&xdev->pdev->dev,
-			CYCLIC_RX_PAGES_MAX * sizeof(struct xdma_result),
-			engine->cyclic_result, engine->cyclic_result_bus);
-		engine->cyclic_result = NULL;
-	}
 }
 
 static void engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
@@ -1985,62 +1771,7 @@ static void engine_destroy(struct xdma_dev *xdev, struct xdma_engine *engine)
 	xdev->engines_num--;
 }
 
-/**
- *engine_cyclic_stop() - stop a cyclic transfer running on an SG DMA engine
- *
- *engine->lock must be taken
- */
-struct xdma_transfer *engine_cyclic_stop(struct xdma_engine *engine)
-{
-	struct xdma_transfer *transfer = 0;
-
-	/* transfers on queue? */
-	if (!list_empty(&engine->transfer_list)) {
-		/* pick first transfer on the queue (was submitted to engine) */
-		transfer = list_entry(engine->transfer_list.next,
-					struct xdma_transfer, entry);
-
-		xdma_engine_stop(engine);
-		engine->running = 0;
-
-		if (transfer && transfer->cyclic) {
-			if (engine->xdma_perf)
-				dbg_perf("Stopping perf transfer on %s\n",
-					engine->name);
-			else
-				dbg_perf("Stopping cyclic transfer on %s\n",
-					engine->name);
-
-			/* free up the buffer allocated for perf run */
-			if (engine->perf_buf_virt)
-				dma_free_coherent(&engine->xdev->pdev->dev,
-					engine->xdma_perf->transfer_size,
-					engine->perf_buf_virt,
-					engine->perf_buf_bus);
-			engine->perf_buf_virt = NULL;
-			list_del(&transfer->entry);
-		} else {
-			dbg_sg("(engine=%p) running transfer is not cyclic\n",
-				engine);
-		}
-	} else {
-		dbg_sg("(engine=%p) found not running transfer.\n", engine);
-	}
-	return transfer;
-}
-
-/* engine_create() - Create an SG DMA engine bookkeeping data structure
- *
- * An SG DMA engine consists of the resources for a single-direction transfer
- * queue; the SG DMA hardware, the software queue and interrupt handling.
- *
- * @dev Pointer to pci_dev
- * @offset byte address offset in BAR[xdev->config_bar_idx] resource for the
- * SG DMA * controller registers.
- * @dir: DMA_TO/FROM_DEVICE
- * @streaming Whether the engine is attached to AXI ST (rather than MM)
- */
-static int engine_init_regs(struct xdma_engine *engine)
+static void engine_init_regs(struct xdma_engine *engine)
 {
 	u32 reg_value;
 
@@ -2052,7 +1783,6 @@ static int engine_init_regs(struct xdma_engine *engine)
 
 	/* Configure error interrupts by default */
 	reg_value = XDMA_CTRL_IE_DESC_ALIGN_MISMATCH;
-	reg_value |= XDMA_CTRL_IE_MAGIC_STOPPED;
 	reg_value |= XDMA_CTRL_IE_MAGIC_STOPPED;
 	reg_value |= XDMA_CTRL_IE_READ_ERROR;
 	reg_value |= XDMA_CTRL_IE_DESC_ERROR;
@@ -2070,8 +1800,6 @@ static int engine_init_regs(struct xdma_engine *engine)
 			(unsigned long)(&engine->regs));
 
 	engine->interrupt_enable_mask_value = reg_value;
-
-	return 0;
 }
 
 static int engine_alloc_resource(struct xdma_engine *engine)
@@ -2085,18 +1813,6 @@ static int engine_alloc_resource(struct xdma_engine *engine)
 		pr_warn("dev %s, %s pre-alloc desc OOM.\n",
 			dev_name(&xdev->pdev->dev), engine->name);
 		goto err_out;
-	}
-
-	if (engine->streaming && engine->dir == DMA_FROM_DEVICE) {
-		engine->cyclic_result = dma_alloc_coherent(&xdev->pdev->dev,
-			CYCLIC_RX_PAGES_MAX * sizeof(struct xdma_result),
-			&engine->cyclic_result_bus, GFP_KERNEL);
-
-		if (!engine->cyclic_result) {
-                        pr_warn("%s, %s pre-alloc result OOM.\n",
-				dev_name(&xdev->pdev->dev), engine->name);
-			goto err_out;
-		}
 	}
 
 	return 0;
@@ -2155,9 +1871,7 @@ static int engine_init(struct xdma_engine *engine, struct xdma_dev *xdev,
 	if (rv)
 		return rv;
 
-	rv = engine_init_regs(engine);
-	if (rv)
-		return rv;
+	engine_init_regs(engine);
 
 	return 0;
 }
@@ -2179,7 +1893,7 @@ static void transfer_destroy(struct xdma_dev *xdev, struct xdma_transfer *xfer)
 	}
 }
 
-static int transfer_build(struct xdma_engine *engine,
+static void transfer_build(struct xdma_engine *engine,
 			struct xdma_request_cb *req, unsigned int desc_max)
 {
 	struct xdma_transfer *xfer = &req->xfer;
@@ -2201,8 +1915,7 @@ static int transfer_build(struct xdma_engine *engine,
 		if (!engine->non_incr_addr)
 			req->ep_addr += sdesc->len;
 	}
-	req->sw_desc_idx += desc_max; 
-	return 0;
+	req->sw_desc_idx += desc_max;
 }
 
 static int transfer_init(struct xdma_engine *engine, struct xdma_request_cb *req)
@@ -2230,7 +1943,7 @@ static int transfer_init(struct xdma_engine *engine, struct xdma_request_cb *req
 	rv = transfer_desc_init(xfer, desc_max);
 	if (rv < 0)
 		return rv;
-	
+
 	dbg_sg("transfer->desc_bus = 0x%llx.\n", (u64)xfer->desc_bus);
 
 	transfer_build(engine, req, desc_max);
@@ -2268,7 +1981,7 @@ static void sgt_dump(struct sg_table *sgt)
 	for (i = 0; i < sgt->nents; i++, sg = sg_next(sg))
 		pr_info("%d, 0x%p, pg 0x%p,%u+%u, dma 0x%llx,%u.\n",
 			i, sg, sg_page(sg), sg->offset, sg->length,
-			sg_dma_address(sg), sg_dma_len(sg)); 
+			sg_dma_address(sg), sg_dma_len(sg));
 }
 
 static void xdma_request_cb_dump(struct xdma_request_cb *req)
@@ -2337,12 +2050,12 @@ static struct xdma_request_cb * xdma_init_request(struct sg_table *sgt,
 	if (!req)
 		return NULL;
 
-	req->sgt = sgt;	
+	req->sgt = sgt;
 	req->ep_addr = ep_addr;
 
 	for (i = 0, sg = sgt->sgl;  i < sgt->nents; i++, sg = sg_next(sg)) {
 		unsigned int tlen = sg_dma_len(sg);
-		dma_addr_t addr = sg_dma_address(sg);	
+		dma_addr_t addr = sg_dma_address(sg);
 
 		req->total_len += tlen;
 		while (tlen) {
@@ -2350,7 +2063,7 @@ static struct xdma_request_cb * xdma_init_request(struct sg_table *sgt,
 			if (tlen > desc_blen_max) {
 				req->sdesc[j].len = desc_blen_max;
 				addr += desc_blen_max;
-				tlen -= desc_blen_max;	
+				tlen -= desc_blen_max;
 			} else {
 				req->sdesc[j].len = tlen;
 				tlen = 0;
@@ -2464,7 +2177,7 @@ ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 		unsigned long flags;
 		struct xdma_transfer *xfer;
 
-		/* build transfer */	
+		/* build transfer */
 		rv = transfer_init(engine, req);
 		if (rv < 0) {
 			mutex_unlock(&engine->desc_lock);
@@ -2562,126 +2275,6 @@ unmap_sgl:
 		return rv;
 
 	return done;
-}
-
-int xdma_performance_submit(struct xdma_dev *xdev, struct xdma_engine *engine)
-{
-	u32 max_consistent_size = 128 * 32 * 1024; /* 1024 pages, 4MB */
-	struct xdma_transfer *transfer;
-	u64 ep_addr = 0;
-	int num_desc_in_a_loop = 128;
-	int size_in_desc = engine->xdma_perf->transfer_size;
-	int size = size_in_desc * num_desc_in_a_loop;
-	int free_desc = 0;
-	int i;
-	int rv = -ENOMEM;
-
-	if (unlikely(size_in_desc > max_consistent_size)) {
-		pr_err("%s, size too big %d > %u.\n",
-			engine->name, size_in_desc, max_consistent_size);
-		return -EINVAL;
-	}
-
-	if (size > max_consistent_size) {
-		size = max_consistent_size;
-		num_desc_in_a_loop = size / size_in_desc;
-	}
-
-	engine->perf_buf_virt = dma_alloc_coherent(&xdev->pdev->dev, size,
-					&engine->perf_buf_bus, GFP_KERNEL);
-	if (unlikely(!engine->perf_buf_virt)) {
-		pr_err("engine %s perf buf OOM.\n", engine->name);
-		return -ENOMEM;
-	}
-
-	/* allocate transfer data structure */
-	transfer = kzalloc(sizeof(struct xdma_transfer), GFP_KERNEL);
-	if (unlikely(!transfer)) {
-		pr_err("engine %s transfer OOM.\n", engine->name);
-		goto free_buffer;
-	}
-
-	/* 0 = write engine (to_dev=0) , 1 = read engine (to_dev=1) */
-	transfer->dir = engine->dir;
-	/* set number of descriptors */
-	transfer->desc_num = num_desc_in_a_loop;
-
-	/* allocate descriptor list */
-	if (!engine->desc) {
-		engine->desc = dma_alloc_coherent(&xdev->pdev->dev,
-			num_desc_in_a_loop * sizeof(struct xdma_desc),
-			&engine->desc_bus, GFP_KERNEL);
-		if (unlikely(!engine->desc)) {
-			pr_err("%s desc OOM.\n", engine->name);
-			goto free_xfer;
-		}
-		dbg_init("device %s, engine %s pre-alloc desc 0x%p,0x%llx.\n",
-			dev_name(&xdev->pdev->dev), engine->name,
-			engine->desc, engine->desc_bus);
-		free_desc = 1;
-	}
-	transfer->desc_virt = engine->desc;
-	transfer->desc_bus = engine->desc_bus;
-
-	rv = transfer_desc_init(transfer, transfer->desc_num);
-	if (rv < 0)
-		goto free_desc;
-
-	dbg_sg("transfer->desc_bus = 0x%llx.\n", (u64)transfer->desc_bus);
-
-	for (i = 0; i < transfer->desc_num; i++) {
-		struct xdma_desc *desc = transfer->desc_virt + i;
-		dma_addr_t rc_bus_addr = engine->perf_buf_bus +
-						size_in_desc * i;
-
-		/* fill in descriptor entry with transfer details */
-		xdma_desc_set(desc, rc_bus_addr, ep_addr, size_in_desc,
-			engine->dir);
-	}
-
-	/* stop engine and request interrupt on last descriptor */
-	rv = xdma_desc_control_set(transfer->desc_virt, 0);
-	if (rv < 0) {
-		pr_err("%s: Failed to set desc control\n", engine->name);
-		goto free_desc;
-	}
-
-	/* create a linked loop */
-	xdma_desc_link(transfer->desc_virt + transfer->desc_num - 1,
-		transfer->desc_virt, transfer->desc_bus);
-
-	transfer->cyclic = 1;
-
-	/* initialize wait queue */
-	init_waitqueue_head(&transfer->wq);
-
-	dbg_perf("Queueing XDMA I/O %s request for performance measurement.\n",
-		engine->dir ? "write (to dev)" : "read (from dev)");
-	rv = transfer_queue(engine, transfer);
-	if (rv < 0)
-		goto free_desc;
-
-	return 0;
-
-free_desc:
-	if (free_desc && engine->desc)
-		dma_free_coherent(&xdev->pdev->dev,
-				num_desc_in_a_loop * sizeof(struct xdma_desc),
-				engine->desc, engine->desc_bus);
-	engine->desc = NULL;
-
-free_xfer:
-	if (transfer) {
-		list_del(&transfer->entry);
-		kfree(transfer);
-	}
-
-free_buffer:
-	if (engine->perf_buf_virt)
-		dma_free_coherent(&xdev->pdev->dev, size_in_desc,
-			engine->perf_buf_virt, engine->perf_buf_bus);
-	engine->perf_buf_virt = NULL;
-	return rv;
 }
 
 static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
@@ -2963,12 +2556,12 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	xdev_list_add(xdev);
 
 	if (xdev->h2c_channel_max == 0 ||
-	    xdev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX) 
+	    xdev->h2c_channel_max > XDMA_CHANNEL_NUM_MAX)
 		xdev->h2c_channel_max = XDMA_CHANNEL_NUM_MAX;
 	if (xdev->c2h_channel_max == 0 ||
-	    xdev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX) 
+	    xdev->c2h_channel_max > XDMA_CHANNEL_NUM_MAX)
 		xdev->c2h_channel_max = XDMA_CHANNEL_NUM_MAX;
-		
+
 	rv = pci_enable_device(pdev);
 	if (rv) {
 		dbg_init("pci_enable_device() failed, %d.\n", rv);
@@ -3116,7 +2709,7 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 		unsigned long flags;
 
 		engine = &xdev->engine_h2c[i];
-		
+
 		if (engine->magic == MAGIC_ENGINE) {
 			spin_lock_irqsave(&engine->lock, flags);
 			engine->shutdown |= ENGINE_SHUTDOWN_REQUEST;
@@ -3191,510 +2784,4 @@ pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
 
 	xdma_device_flag_clear(xdev, XDEV_FLAG_OFFLINE);
 	pr_info("xdev 0x%p, done.\n", xdev);
-}
-
-/* makes an existing transfer cyclic */
-static void xdma_transfer_cyclic(struct xdma_transfer *transfer)
-{
-	/* link last descriptor to first descriptor */
-	xdma_desc_link(transfer->desc_virt + transfer->desc_num - 1,
-			transfer->desc_virt, transfer->desc_bus);
-	/* remember transfer is cyclic */
-	transfer->cyclic = 1;
-}
-
-static int transfer_monitor_cyclic(struct xdma_engine *engine,
-			struct xdma_transfer *transfer, int timeout_ms)
-{
-	struct xdma_result *result;
-	int rc = 0;
-
-	if (unlikely(!engine || !engine->cyclic_result || !transfer)) {
-		pr_err("engine 0x%p, cyclic_result 0x%p, xfer 0x%p.\n",
-			engine, engine->cyclic_result, transfer);
-		return -EINVAL;
-	}
-
-	result = engine->cyclic_result;
-
-	rc = wait_event_interruptible_timeout( transfer->wq,
-			engine->eop_found,
-			msecs_to_jiffies(timeout_ms));
-	dbg_tfr("%s: wait returns %d, eop_found %d.\n",
-		engine->name, rc, engine->eop_found);
-
-	return 0;
-}
-
-struct scatterlist *sglist_index(struct sg_table *sgt, unsigned int idx)
-{
-	struct scatterlist *sg = sgt->sgl;
-	int i;
-
-	if (idx >= sgt->orig_nents)
-		return NULL;
-
-	if (!idx)
-		return sg;
-
-	for (i = 0; i < idx; i++, sg = sg_next(sg))
-		;
-
-	return sg;
-}
-
-static int copy_cyclic_to_user(struct xdma_engine *engine, int pkt_length,
-				int head, char __user *buf, size_t count)
-{
-	struct scatterlist *sg;
-	int more = pkt_length;
-
-	if (unlikely(!buf || !engine)) {
-		pr_err("engine 0x%p, buf 0x%p.\n", engine, buf);
-		return -EINVAL;
-	}
-
-	dbg_tfr("%s, pkt_len %d, head %d, user buf idx %u.\n",
-		engine->name, pkt_length, head, engine->user_buffer_index);
-
-	sg = sglist_index(&engine->cyclic_sgt, head);
-	if (!sg) {
-		pr_info("%s, head %d OOR, sgl %u.\n",
-			engine->name, head, engine->cyclic_sgt.orig_nents);
-		return -EIO;
-	}
-
-	/* EOP found? Transfer anything from head to EOP */
-	while (more) {
-		unsigned int copy = more > PAGE_SIZE ? PAGE_SIZE : more; 
-		unsigned int blen = count - engine->user_buffer_index;
-		int rv;
-
-		if (copy > blen)
-			copy = blen;
-
-		dbg_tfr("%s sg %d, 0x%p, copy %u to user %u.\n",
-			engine->name, head, sg, copy,
-			engine->user_buffer_index);
-
-		rv = copy_to_user(&buf[engine->user_buffer_index],
-			page_address(sg_page(sg)), copy);
-		if (rv) {
-			pr_info("%s copy_to_user %u failed %d\n",
-				engine->name, copy, rv);
-			return -EIO;
-		}
-
-		more -= copy;
-		engine->user_buffer_index += copy;
-
-		if (engine->user_buffer_index == count) {
-			/* user buffer used up */
-			break;
-		}
-		
-		head++;
-		if (head >= CYCLIC_RX_PAGES_MAX) {
-			head = 0;
-			sg = engine->cyclic_sgt.sgl;
-		} else
-			sg = sg_next(sg);
-	}
-
-	return pkt_length;
-}
-
-static int complete_cyclic(struct xdma_engine *engine, char __user *buf,
-			   size_t count)
-{
-	struct xdma_result *result;
-	int pkt_length = 0;
-	int fault = 0;
-	int eop = 0;
-	int head;
-	int rc = 0;
-	int num_credit = 0;
-	unsigned long flags;
-
-	if (unlikely(!engine || !engine->cyclic_result)) {
-		pr_err("engine 0x%p, cyclic_result NULL.\n", engine);
-		return -EINVAL;
-	}
-	result = engine->cyclic_result;
-
-	spin_lock_irqsave(&engine->lock, flags);
-
-	/* where the host currently is in the ring buffer */
-	head = engine->rx_head;
-
-	/* iterate over newly received results */
-	while (engine->rx_head != engine->rx_tail||engine->rx_overrun) {
-
-		WARN_ON(result[engine->rx_head].status==0);
-
-		dbg_tfr("%s, result[%d].status = 0x%x length = 0x%x.\n",
-			engine->name, engine->rx_head, 
-			result[engine->rx_head].status,
-			result[engine->rx_head].length);
-
-		if ((result[engine->rx_head].status >> 16) != C2H_WB) {
-			pr_info("%s, result[%d].status 0x%x, no magic.\n",
-				engine->name, engine->rx_head,
-				result[engine->rx_head].status);
-			fault = 1;
-		} else if (result[engine->rx_head].length > PAGE_SIZE) {
-			pr_info("%s, result[%d].len 0x%x, > PAGE_SIZE 0x%lx.\n",
-				engine->name, engine->rx_head,
-				result[engine->rx_head].length, PAGE_SIZE);
-			fault = 1;
-		} else if (result[engine->rx_head].length == 0) {
-			pr_info("%s, result[%d].length 0x%x.\n",
-				engine->name, engine->rx_head,
-				result[engine->rx_head].length);
-			fault = 1;
-			/* valid result */
-		} else {
-			pkt_length += result[engine->rx_head].length;
-			num_credit++; 
-			/* seen eop? */
-			//if (result[engine->rx_head].status & RX_STATUS_EOP)
-			if (result[engine->rx_head].status & RX_STATUS_EOP){
-				eop = 1;
-				engine->eop_found = 1;
-			}
-
-			dbg_tfr("%s, pkt_length=%d (%s)\n",
-				engine->name, pkt_length,
-				eop ? "with EOP" : "no EOP yet");
-		}
-		/* clear result */
-		result[engine->rx_head].status = 0;
-		result[engine->rx_head].length = 0;
-		/* proceed head pointer so we make progress, even when fault */
-		engine->rx_head = (engine->rx_head + 1) % CYCLIC_RX_PAGES_MAX;
-
-		/* stop processing if a fault/eop was detected */
-		if (fault || eop){
-			break;
-		}
-	}
-
-	spin_unlock_irqrestore(&engine->lock, flags);
-
-	if (fault)
-		return -EIO;
-		
-	rc = copy_cyclic_to_user(engine, pkt_length, head, buf, count);
-	engine->rx_overrun = 0; 
-	/* if copy is successful, release credits */
-	if(rc > 0)
-		write_register(num_credit,&engine->sgdma_regs->credits, 0);
-
-	return rc;
-}
-
-ssize_t xdma_engine_read_cyclic(struct xdma_engine *engine, char __user *buf,
-				size_t count, int timeout_ms)
-{
-	int i = 0;
-	int rc = 0;
-	int rc_len = 0;
-	struct xdma_transfer *transfer;
-
-	if (unlikely(!engine || (engine->magic != MAGIC_ENGINE))) {
-		pr_err("bad engine 0x%p, magic 0x%lx.\n",
-			engine, engine ? engine->magic : 0UL);
-		return -EINVAL;
-	}
-
-	if (unlikely(!engine->cyclic_req)) {
-		pr_err("engine %s, cyclic_req NULL.\n", engine->name);
-		return -EINVAL;
-	}
-	transfer = &engine->cyclic_req->xfer;
-
-        engine->user_buffer_index = 0;
-        
-	do {
-		rc = transfer_monitor_cyclic(engine, transfer, timeout_ms);
-		if (rc < 0)
-			return rc;
-		rc = complete_cyclic(engine, buf, count);
-		if (rc < 0)
-			return rc;
-		rc_len += rc;
-
-		i++;
-		if (i > 10)
-			break;
-	} while (!engine->eop_found);
-
-	return rc_len;
-}
-
-static void sgt_free_with_pages(struct sg_table *sgt, int dir,
-				struct pci_dev *pdev)
-{
-	struct scatterlist *sg = sgt->sgl;
-	int npages = sgt->orig_nents;
-	int i;
-
-	for (i = 0; i < npages; i++, sg = sg_next(sg)) {
-		struct page *pg = sg_page(sg);
-		dma_addr_t bus = sg_dma_address(sg);
-
-		if (pg) {
-			if (pdev)
-				pci_unmap_page(pdev, bus, PAGE_SIZE, dir);
-			__free_page(pg);
-		} else
-			break;
-	}
-	sg_free_table(sgt);
-	memset(sgt, 0, sizeof(struct sg_table));
-}
-
-static int sgt_alloc_with_pages(struct sg_table *sgt, unsigned int npages,
-				int dir, struct pci_dev *pdev)
-{
-	struct scatterlist *sg;
-	int i;
-
-	if (sg_alloc_table(sgt, npages, GFP_KERNEL)) {
-		pr_info("sgt OOM.\n");
-		return -ENOMEM;
-	}
-
-	sg = sgt->sgl;
-	for (i = 0; i < npages; i++, sg = sg_next(sg)) {
-		struct page *pg = alloc_page(GFP_KERNEL);
-
-        	if (!pg) {
-			pr_info("%d/%u, page OOM.\n", i, npages);
-			goto err_out;
-		}
-
-		if (pdev) {
-			dma_addr_t bus = pci_map_page(pdev, pg, 0, PAGE_SIZE,
-							dir);
-                	if (unlikely(pci_dma_mapping_error(pdev, bus))) {
-				pr_info("%d/%u, page 0x%p map err.\n",
-					 i, npages, pg);
-				__free_page(pg);
-				goto err_out;
-			}
-			sg_dma_address(sg) = bus;
-			sg_dma_len(sg) = PAGE_SIZE;
-		}
-		sg_set_page(sg, pg, PAGE_SIZE, 0);
-	}
-
-	sgt->orig_nents = sgt->nents = npages;
-
-	return 0;
-
-err_out:
-	sgt_free_with_pages(sgt, dir, pdev);
-	return -ENOMEM; 
-}
-
-int xdma_cyclic_transfer_setup(struct xdma_engine *engine)
-{
-	struct xdma_dev *xdev;
-	struct xdma_transfer *xfer;
-	dma_addr_t bus;
-	unsigned long flags;
-	int i;
-	int rc;
-
-	if (unlikely(!engine || !engine->xdev)) {
-		pr_err("engine 0x%p, xdev NULL.\n", engine);
-		return -EINVAL;
-	}
-	xdev = engine->xdev;
-
-	if (engine->cyclic_req) {
-		pr_info("%s: exclusive access already taken.\n",
-			engine->name);
-		return -EBUSY;
-	}
-
-	spin_lock_irqsave(&engine->lock, flags);
-
-	engine->rx_tail = 0;
-	engine->rx_head = 0;
-	engine->rx_overrun = 0;
-	engine->eop_found = 0;
-
-	rc = sgt_alloc_with_pages(&engine->cyclic_sgt, CYCLIC_RX_PAGES_MAX,
-				engine->dir, xdev->pdev);
-	if (rc < 0) {
-		pr_info("%s cyclic pages %u OOM.\n",
-			engine->name, CYCLIC_RX_PAGES_MAX);
-		goto err_out;
-	}
-
-	engine->cyclic_req = xdma_init_request(&engine->cyclic_sgt, 0);
-	if (!engine->cyclic_req) {
-		pr_info("%s cyclic request OOM.\n", engine->name);
-		rc = -ENOMEM;
-		goto err_out;
-	}
-
-#ifdef __LIBXDMA_DEBUG__
-	xdma_request_cb_dump(engine->cyclic_req);
-#endif
-
-	rc = transfer_init(engine, engine->cyclic_req);
-	if (rc < 0)
-		goto err_out;
-
-	xfer = &engine->cyclic_req->xfer;
-
-	/* replace source addresses with result write-back addresses */
-	memset(engine->cyclic_result, 0,
-		CYCLIC_RX_PAGES_MAX * sizeof(struct xdma_result));
-	bus = engine->cyclic_result_bus;
-        for (i = 0; i < xfer->desc_num; i++) {
-		xfer->desc_virt[i].src_addr_lo = cpu_to_le32(PCI_DMA_L(bus));
-        	xfer->desc_virt[i].src_addr_hi = cpu_to_le32(PCI_DMA_H(bus));
-                bus += sizeof(struct xdma_result);
-        }
-	/* set control of all descriptors */
-        for (i = 0; i < xfer->desc_num; i++) {
-                xdma_desc_control_clear(xfer->desc_virt + i, LS_BYTE_MASK);
-                xdma_desc_control_set(xfer->desc_virt + i,
-				 XDMA_DESC_EOP | XDMA_DESC_COMPLETED);
-        }
-
-	/* make this a cyclic transfer */
-	xdma_transfer_cyclic(xfer);
-
-#ifdef __LIBXDMA_DEBUG__
-	transfer_dump(xfer);
-#endif
-
-	spin_unlock_irqrestore(&engine->lock, flags);
-
-	/* start cyclic transfer */
-	rc = transfer_queue(engine, xfer);
-	if (!rc)
-		return 0;
-
-	spin_lock_irqsave(&engine->lock, flags);
-	/* unwind on errors */
-err_out:
-	if (engine->cyclic_req) {
-		xdma_request_free(engine->cyclic_req);
-		engine->cyclic_req = NULL;
-	}
-
-	if (engine->cyclic_sgt.orig_nents) {
-		sgt_free_with_pages(&engine->cyclic_sgt, engine->dir,
-				xdev->pdev);
-		engine->cyclic_sgt.orig_nents = 0;
-		engine->cyclic_sgt.nents = 0;
-		engine->cyclic_sgt.sgl = NULL;
-	}
-
-	spin_unlock_irqrestore(&engine->lock, flags);
-
-	return rc;
-}
-
-static int cyclic_shutdown_interrupt(struct xdma_engine *engine)
-{
-	int rc;
-
-	if (unlikely(!engine)) {
-		pr_err("engine NULL.\n");
-		return -EINVAL;
-	}
-
-	rc = wait_event_interruptible_timeout(engine->shutdown_wq,
-				!engine->running, msecs_to_jiffies(10000));
-	if (engine->running) {
-		pr_info("%s still running?!, %d\n", engine->name, rc);
-		return -EINVAL;
-	}
-
-	return rc;
-}
-
-int xdma_cyclic_transfer_teardown(struct xdma_engine *engine)
-{
-	int rc;
-	struct xdma_dev *xdev = engine->xdev;
-	struct xdma_transfer *transfer;
-	unsigned long flags;
-
-	transfer = engine_cyclic_stop(engine);
-	if (transfer == NULL) {
-		pr_err("Failed to stop cyclic engine\n");
-		return -EINVAL;
-	}
-
-	spin_lock_irqsave(&engine->lock, flags);
-	if (transfer) {
-		dbg_tfr("%s: stop transfer 0x%p.\n", engine->name, transfer);
-		if (transfer != &engine->cyclic_req->xfer) {
-			pr_info("%s unexpected transfer 0x%p/0x%p\n",
-				engine->name, transfer,
-				&engine->cyclic_req->xfer);
-		}
-	}
-	/* allow engine to be serviced after stop request */
-	spin_unlock_irqrestore(&engine->lock, flags);
-
-	/* wait for engine to be no longer running */
-	rc = cyclic_shutdown_interrupt(engine);
-	if (rc < 0) {
-		pr_err("Failed to shutdown cyclic transfers\n");
-		return rc;
-	}
-
-	/* obtain spin lock to atomically remove resources */
-	spin_lock_irqsave(&engine->lock, flags);
-
-	if (engine->cyclic_req) {
-		xdma_request_free(engine->cyclic_req);
-		engine->cyclic_req = NULL;
-	}
-
-	if (engine->cyclic_sgt.orig_nents) {
-		sgt_free_with_pages(&engine->cyclic_sgt, engine->dir,
-				xdev->pdev);
-		engine->cyclic_sgt.orig_nents = 0;
-		engine->cyclic_sgt.nents = 0;
-		engine->cyclic_sgt.sgl = NULL;
-	}
-
-	spin_unlock_irqrestore(&engine->lock, flags);
-
-	return 0;
-}
-
-int engine_addrmode_set(struct xdma_engine *engine, unsigned long arg)
-{
-	int rv;
-	unsigned long dst; 
-	u32 w = XDMA_CTRL_NON_INCR_ADDR;
-
-	dbg_perf("IOCTL_XDMA_ADDRMODE_SET\n");
-	rv = get_user(dst, (int __user *)arg);
-
-	if (rv == 0) {
-		engine->non_incr_addr = !!dst;
-		if (engine->non_incr_addr)
-			write_register(w, &engine->regs->control_w1s, 
-				(unsigned long)(&engine->regs->control_w1s) -
-				(unsigned long)(&engine->regs));
-		else
-			write_register(w, &engine->regs->control_w1c,
-				(unsigned long)(&engine->regs->control_w1c) - 
-				(unsigned long)(&engine->regs));
-	}
-	engine_alignments(engine);
-
-	return rv;
 }

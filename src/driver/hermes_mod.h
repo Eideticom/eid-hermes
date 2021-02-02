@@ -55,8 +55,6 @@
 
 #define MAGIC_ENGINE	0xEEEEEEEEUL
 #define MAGIC_DEVICE	0xDDDDDDDDUL
-#define MAGIC_CHAR	0xCCCCCCCCUL
-#define MAGIC_BITSTREAM 0xBBBBBBBBUL
 
 extern unsigned int desc_blen_max;
 extern unsigned int sgdma_timeout;

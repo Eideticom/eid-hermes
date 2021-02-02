@@ -28,29 +28,6 @@
 #include <linux/ioctl.h>
 #include "hermes_mod.h"
 
-#define IOCTL_XDMA_PERF_V1 (1)
-#define XDMA_ADDRMODE_MEMORY (0)
-#define XDMA_ADDRMODE_FIXED (1)
-
-/*
- * S means "Set" through a ptr,
- * T means "Tell" directly with the argument value
- * G means "Get": reply by setting through a pointer
- * Q means "Query": response is on the return value
- * X means "eXchange": switch G and S atomically
- * H means "sHift": switch T and Q atomically
- *
- * _IO(type,nr)		    no arguments
- * _IOR(type,nr,datatype)   read data from driver
- * _IOW(type,nr.datatype)   write data to driver
- * _IORW(type,nr,datatype)  read/write data
- *
- * _IOC_DIR(nr)		    returns direction
- * _IOC_TYPE(nr)	    returns magic
- * _IOC_NR(nr)		    returns number
- * _IOC_SIZE(nr)	    returns size
- */
-
 struct xdma_performance_ioctl {
 	/* IOCTL_XDMA_IOCTL_Vx */
 	uint32_t version;
@@ -66,14 +43,5 @@ struct xdma_performance_ioctl {
 int hpdev_init_channels(struct hermes_pci_dev *hpdev);
 ssize_t xdma_channel_read_write(struct xdma_channel *chnl,
 		struct iov_iter *iter, loff_t pos);
-
-/* IOCTL codes */
-
-#define IOCTL_XDMA_PERF_START   _IOW('q', 1, struct xdma_performance_ioctl *)
-#define IOCTL_XDMA_PERF_STOP    _IOW('q', 2, struct xdma_performance_ioctl *)
-#define IOCTL_XDMA_PERF_GET     _IOR('q', 3, struct xdma_performance_ioctl *)
-#define IOCTL_XDMA_ADDRMODE_SET _IOW('q', 4, int)
-#define IOCTL_XDMA_ADDRMODE_GET _IOR('q', 5, int)
-#define IOCTL_XDMA_ALIGN_GET    _IOR('q', 6, int)
 
 #endif /* _XDMA_IOCALLS_POSIX_H_ */
