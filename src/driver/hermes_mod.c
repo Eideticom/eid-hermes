@@ -370,7 +370,7 @@ static int __init hermes_mod_init(void)
 static void __exit hermes_mod_exit(void)
 {
 	/* unregister this driver from the PCI bus driver */
-	dbg_init("pci_unregister_driver.\n");
+	pr_debug("pci_unregister_driver.\n");
 	pci_unregister_driver(&pci_driver);
 	hermes_cdev_cleanup();
 }

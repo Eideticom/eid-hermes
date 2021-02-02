@@ -165,27 +165,6 @@
 /* obtain the 32 least significant (low) bits of a 32-bit or 64-bit address */
 #define PCI_DMA_L(addr) (addr & 0xffffffffUL)
 
-#ifdef __LIBXDMA_DEBUG__
-#define dbg_io		pr_err
-#define dbg_fops	pr_err
-#define dbg_perf	pr_err
-#define dbg_sg		pr_err
-#define dbg_tfr		pr_err
-#define dbg_irq		pr_err
-#define dbg_init	pr_err
-#define dbg_desc	pr_err
-#else
-/* disable debugging */
-#define dbg_io(...)
-#define dbg_fops(...)
-#define dbg_perf(...)
-#define dbg_sg(...)
-#define dbg_tfr(...)
-#define dbg_irq(...)
-#define dbg_init(...)
-#define dbg_desc(...)
-#endif
-
 /* SECTION: Enum definitions */
 enum transfer_state {
 	TRANSFER_STATE_NEW = 0,
@@ -377,8 +356,6 @@ struct xdma_engine {
 	struct xdma_dev *xdev;	/* parent device */
 	char name[5];		/* name of this engine */
 	int version;		/* version of this engine */
-	//dev_t cdevno;		/* character device major:minor */
-	//struct cdev cdev;	/* character device (embedded struct) */
 
 	/* HW register address offsets */
 	struct engine_regs *regs;		/* Control reg BAR offset */
@@ -387,15 +364,11 @@ struct xdma_engine {
 	/* Engine state, configuration and flags */
 	enum shutdown_state shutdown;	/* engine shutdown mode */
 	enum dma_data_direction dir;
-	int device_open;	/* flag if engine node open, ST mode only */
 	int running;		/* flag if the driver started engine */
 	int non_incr_addr;	/* flag if non-incremental addressing used */
-	int streaming;
 	int addr_align;		/* source/dest alignment in bytes */
 	int len_granularity;	/* transfer length multiple */
-	int addr_bits;		/* HW datapath address width */
 	int channel;		/* engine indices */
-	int max_extra_adj;	/* descriptor prefetch capability */
 	int desc_dequeued;	/* num descriptors of completed transfers */
 	u32 status;		/* last known status of device */
 	/* only used for MSIX mode to store per-engine interrupt mask value */
@@ -404,28 +377,14 @@ struct xdma_engine {
 	/* Transfer list management */
 	struct list_head transfer_list;	/* queue of transfers */
 
-	u8 *perf_buf_virt;
-	dma_addr_t perf_buf_bus; /* bus address */
-
-	int rx_tail;	/* follows the HW */
-	int rx_head;	/* where the SW reads from */
-	int rx_overrun;	/* flag if overrun occured */
-
 	/* Members associated with interrupt mode support */
-	wait_queue_head_t shutdown_wq;	/* wait queue for shutdown sync */
 	spinlock_t lock;		/* protects concurrent access */
-	int prev_cpu;			/* remember CPU# of (last) locker */
 	int msix_irq_line;		/* MSI-X vector for this engine */
-	u32 irq_bitmask;		/* IRQ bit mask for this engine */
 	struct work_struct work;	/* Work queue for interrupt handling */
 
 	struct mutex desc_lock;		/* protects concurrent access */
 	dma_addr_t desc_bus;
 	struct xdma_desc *desc;
-
-	/* for performance test support */
-	struct xdma_performance_ioctl *xdma_perf;	/* perf test control */
-	wait_queue_head_t xdma_perf_wq;	/* Perf test sync */
 };
 
 /* XDMA PCIe device specific book-keeping */
@@ -453,22 +412,14 @@ struct xdma_dev {
 	int h2c_channel_max;
 
 	/* Interrupt management */
-	int irq_count;		/* interrupt counter */
 	int irq_line;		/* flag if irq allocated successfully */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
 	struct msix_entry entry[32];	/* msi-x vector/entry table */
 #endif
 
 	/* XDMA engine management */
-	int engines_num;	/* Total engine count */
-	u32 mask_irq_h2c;
-	u32 mask_irq_c2h;
 	struct xdma_engine engine_h2c[XDMA_CHANNEL_NUM_MAX];
 	struct xdma_engine engine_c2h[XDMA_CHANNEL_NUM_MAX];
-
-	/* SD_Accel specific */
-	enum dev_capabilities capabilities;
-	u64 feature_id;
 };
 
 static inline int xdma_device_flag_check(struct xdma_dev *xdev, unsigned int f)
@@ -482,22 +433,6 @@ static inline int xdma_device_flag_check(struct xdma_dev *xdev, unsigned int f)
 	}
 	spin_unlock_irqrestore(&xdev->lock, flags);
 	return 0;
-}
-
-static inline int xdma_device_flag_test_n_set(struct xdma_dev *xdev,
-					 unsigned int f)
-{
-	unsigned long flags;
-	int rv = 0;
-
-	spin_lock_irqsave(&xdev->lock, flags);
-	if (xdev->flags & f) {
-		spin_unlock_irqrestore(&xdev->lock, flags);
-		rv = 1;
-	} else
-		xdev->flags |= f;
-	spin_unlock_irqrestore(&xdev->lock, flags);
-	return rv;
 }
 
 static inline void xdma_device_flag_set(struct xdma_dev *xdev, unsigned int f)

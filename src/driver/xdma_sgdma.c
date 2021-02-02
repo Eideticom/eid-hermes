@@ -79,23 +79,23 @@ static int check_transfer_align(struct xdma_engine *engine,
 		size_t len_lsb = count & ((size_t)engine->len_granularity - 1);
 		int pos_lsb = (int)pos & (engine->addr_align - 1);
 
-		dbg_tfr("AXI ST or MM non-incremental\n");
-		dbg_tfr("buf_lsb = %d, pos_lsb = %d, len_lsb = %ld\n", buf_lsb,
+		pr_debug("AXI ST or MM non-incremental\n");
+		pr_debug("buf_lsb = %d, pos_lsb = %d, len_lsb = %ld\n", buf_lsb,
 			pos_lsb, len_lsb);
 
 		if (buf_lsb != 0) {
-			dbg_tfr("FAIL: non-aligned buffer address %p\n", buf);
+			pr_debug("FAIL: non-aligned buffer address %p\n", buf);
 			return -EINVAL;
 		}
 
 		if ((pos_lsb != 0) && (sync)) {
-			dbg_tfr("FAIL: non-aligned AXI MM FPGA addr 0x%llx\n",
+			pr_debug("FAIL: non-aligned AXI MM FPGA addr 0x%llx\n",
 				(unsigned long long)pos);
 			return -EINVAL;
 		}
 
 		if (len_lsb != 0) {
-			dbg_tfr("FAIL: len %d is not a multiple of %d\n",
+			pr_debug("FAIL: len %d is not a multiple of %d\n",
 				(int)count,
 				(int)engine->len_granularity);
 			return -EINVAL;
@@ -106,8 +106,8 @@ static int check_transfer_align(struct xdma_engine *engine,
 		int pos_lsb = (int)pos & (engine->addr_align - 1);
 
 		if (buf_lsb != pos_lsb) {
-			dbg_tfr("FAIL: Misalignment error\n");
-			dbg_tfr("host addr %p, FPGA addr 0x%llx\n", buf, pos);
+			pr_debug("FAIL: Misalignment error\n");
+			pr_debug("host addr %p, FPGA addr 0x%llx\n", buf, pos);
 			return -EINVAL;
 		}
 	}
