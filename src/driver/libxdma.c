@@ -945,7 +945,7 @@ static irqreturn_t xdma_channel_irq(int irq, void *dev_id)
 /*
  * Unmap the BAR regions that had been mapped earlier using map_bars()
  */
-static void unmap_bars(struct xdma_dev *xdev, struct pci_dev *dev)
+static void unmap_bars(struct xdma_dev *xdev)
 {
 	int i;
 
@@ -953,18 +953,19 @@ static void unmap_bars(struct xdma_dev *xdev, struct pci_dev *dev)
 		/* is this BAR mapped? */
 		if (xdev->bar[i]) {
 			/* unmap BAR */
-			pci_iounmap(dev, xdev->bar[i]);
+			pci_iounmap(xdev->pdev, xdev->bar[i]);
 			/* mark as unmapped */
 			xdev->bar[i] = NULL;
 		}
 	}
 }
 
-static int map_single_bar(struct xdma_dev *xdev, struct pci_dev *dev, int idx)
+static int map_single_bar(struct xdma_dev *xdev, int idx)
 {
 	resource_size_t bar_start;
 	resource_size_t bar_len;
 	resource_size_t map_len;
+	struct pci_dev *dev = xdev->pdev;
 
 	bar_start = pci_resource_start(dev, idx);
 	bar_len = pci_resource_len(dev, idx);
@@ -1090,21 +1091,21 @@ static void identify_bars(struct xdma_dev *xdev, int *bar_id_list, int num_bars,
  * Map the device memory regions into kernel virtual address space after
  * verifying their sizes respect the minimum sizes needed
  */
-static int map_bars(struct xdma_dev *xdev, struct pci_dev *dev)
+static int map_bars(struct xdma_dev *xdev)
 {
 	int rv;
 
 #ifdef XDMA_CONFIG_BAR_NUM
-	rv = map_single_bar(xdev, dev, XDMA_CONFIG_BAR_NUM);
+	rv = map_single_bar(xdev, XDMA_CONFIG_BAR_NUM);
 	if (rv <= 0) {
 		pr_info("%s, map config bar %d failed, %d.\n",
-			dev_name(&dev->dev), XDMA_CONFIG_BAR_NUM, rv);
+			dev_name(&xdev->pdev->dev), XDMA_CONFIG_BAR_NUM, rv);
 		return -EINVAL;
 	}
 
 	if (is_config_bar(xdev, XDMA_CONFIG_BAR_NUM) == 0) {
 		pr_info("%s, unable to identify config bar %d.\n",
-			dev_name(&dev->dev), XDMA_CONFIG_BAR_NUM);
+			dev_name(&xdev->pdev->dev), XDMA_CONFIG_BAR_NUM);
 		return -EINVAL;
 	}
 	xdev->config_bar_idx = XDMA_CONFIG_BAR_NUM;
@@ -1120,7 +1121,7 @@ static int map_bars(struct xdma_dev *xdev, struct pci_dev *dev)
 	for (i = 0; i < XDMA_BAR_NUM; i++) {
 		int bar_len;
 
-		bar_len = map_single_bar(xdev, dev, i);
+		bar_len = map_single_bar(xdev, i);
 		if (bar_len == 0) {
 			continue;
 		} else if (bar_len < 0) {
@@ -1157,7 +1158,7 @@ static int map_bars(struct xdma_dev *xdev, struct pci_dev *dev)
 
 fail:
 	/* unwind; unmap any BARs that we did map */
-	unmap_bars(xdev, dev);
+	unmap_bars(xdev);
 	return rv;
 #endif
 }
@@ -1197,13 +1198,14 @@ static int msi_msix_capable(struct pci_dev *dev, int type)
 	return 1;
 }
 
-static void disable_msi_msix(struct xdma_dev *xdev, struct pci_dev *pdev)
+static void disable_msi_msix(struct pci_dev *pdev)
 {
 	pci_disable_msix(pdev);
 }
 
-static int enable_msi_msix(struct xdma_dev *xdev, struct pci_dev *pdev)
+static int enable_msi_msix(struct xdma_dev *xdev)
 {
+	struct pci_dev *pdev = xdev->pdev;
 	int rv = 0;
 
 	if (unlikely(!xdev || !pdev)) {
@@ -1363,10 +1365,10 @@ static void irq_teardown(struct xdma_dev *xdev)
 	irq_msix_channel_teardown(xdev);
 }
 
-static int irq_setup(struct xdma_dev *xdev, struct pci_dev *pdev)
+static int irq_setup(struct xdma_dev *xdev)
 {
 	int rv;
-	pci_keep_intx_enabled(pdev);
+	pci_keep_intx_enabled(xdev->pdev);
 
 	rv = irq_msix_channel_setup(xdev);
 	if (rv)
@@ -2205,17 +2207,17 @@ static struct xdma_dev *alloc_dev_instance(struct pci_dev *pdev)
 	return xdev;
 }
 
-static int request_regions(struct xdma_dev *xdev, struct pci_dev *pdev)
+static int request_regions(struct xdma_dev *xdev)
 {
 	int rv;
 
-	if (unlikely(!xdev || !pdev)) {
-		pr_err("xdev 0x%p, pdev 0x%p.\n", xdev, pdev);
+	if (unlikely(!xdev || !xdev->pdev)) {
+		pr_err("xdev 0x%p, pdev 0x%p.\n", xdev, xdev->pdev);
 		return -EINVAL;
 	}
 
 	pr_debug("pci_request_regions()\n");
-	rv = pci_request_regions(pdev, xdev->mod_name);
+	rv = pci_request_regions(xdev->pdev, xdev->mod_name);
 	/* could not request all regions? */
 	if (rv) {
 		pr_debug("pci_request_regions() = %d, device in use?\n", rv);
@@ -2444,11 +2446,11 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	/* enable bus master capability */
 	pci_set_master(pdev);
 
-	rv = request_regions(xdev, pdev);
+	rv = request_regions(xdev);
 	if (rv)
 		goto err_regions;
 
-	rv = map_bars(xdev, pdev);
+	rv = map_bars(xdev);
 	if (rv)
 		goto err_map;
 
@@ -2465,11 +2467,11 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	if (rv)
 		goto err_engines;
 
-	rv = enable_msi_msix(xdev, pdev);
+	rv = enable_msi_msix(xdev);
 	if (rv < 0)
 		goto err_enable_msix;
 
-	rv = irq_setup(xdev, pdev);
+	rv = irq_setup(xdev);
 	if (rv < 0)
 		goto err_interrupts;
 
@@ -2487,11 +2489,11 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 err_interrupts:
 	irq_teardown(xdev);
 err_enable_msix:
-	disable_msi_msix(xdev, pdev);
+	disable_msi_msix(pdev);
 err_engines:
 	remove_engines(xdev);
 err_mask:
-	unmap_bars(xdev, pdev);
+	unmap_bars(xdev);
 err_map:
 	if (xdev->got_regions)
 		pci_release_regions(pdev);
@@ -2527,10 +2529,10 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 	read_interrupts(xdev);
 
 	irq_teardown(xdev);
-	disable_msi_msix(xdev, pdev);
+	disable_msi_msix(pdev);
 
 	remove_engines(xdev);
-	unmap_bars(xdev, pdev);
+	unmap_bars(xdev);
 
 	if (xdev->got_regions) {
 		pr_debug("pci_release_regions 0x%p.\n", pdev);
@@ -2635,7 +2637,7 @@ pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
 		}
 	}
 
-	irq_setup(xdev, pdev);
+	irq_setup(xdev);
 
 	channel_interrupts_enable(xdev, ~0);
 	read_interrupts(xdev);
