@@ -1165,32 +1165,6 @@ fail:
 #endif
 }
 
-static void disable_msi_msix(struct pci_dev *pdev)
-{
-	pci_disable_msix(pdev);
-}
-
-static int enable_msi_msix(struct xdma_dev *xdev)
-{
-	struct pci_dev *pdev = xdev->pdev;
-	int rv, req_nvec;
-
-	if (unlikely(!xdev || !pdev)) {
-		pr_err("xdev 0x%p, pdev 0x%p.\n", xdev, pdev);
-		return -EINVAL;
-	}
-
-	req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max;
-
-	pr_debug("Enabling MSI-X\n");
-	rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec,
-				PCI_IRQ_MSIX);
-	if (rv < 0)
-		pr_debug("Couldn't enable MSI-X mode: %d\n", rv);
-
-	return rv;
-}
-
 static void pci_check_intr_pend(struct pci_dev *pdev)
 {
 	u16 v;
@@ -1250,7 +1224,7 @@ static void prog_irq_msix_channel(struct xdma_dev *xdev, bool clear)
 	}
 }
 
-static void xdma_irq_teardown(struct xdma_dev *xdev)
+void xdma_irq_teardown(struct xdma_dev *xdev)
 {
 	struct xdma_engine *engine;
 	int j = 0;
@@ -1325,7 +1299,7 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 	return 0;
 }
 
-static int xdma_irq_setup(struct xdma_dev *xdev)
+int xdma_irq_setup(struct xdma_dev *xdev)
 {
 	int rv;
 	pci_keep_intx_enabled(xdev->pdev);
@@ -2430,24 +2404,12 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	if (rv)
 		goto err_engines;
 
-	rv = enable_msi_msix(xdev);
-	if (rv < 0)
-		goto err_enable_msix;
-
-	rv = xdma_irq_setup(xdev);
-	if (rv < 0)
-		goto err_interrupts;
-
 	*h2c_channel_max = xdev->h2c_channel_max;
 	*c2h_channel_max = xdev->c2h_channel_max;
 
 	xdma_device_flag_clear(xdev, XDEV_FLAG_OFFLINE);
 	return (void *)xdev;
 
-err_interrupts:
-	xdma_irq_teardown(xdev);
-err_enable_msix:
-	disable_msi_msix(pdev);
 err_engines:
 	remove_engines(xdev);
 err_mask:
@@ -2482,10 +2444,6 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 		pr_debug("pci_dev(0x%lx) != pdev(0x%lx)\n",
 			(unsigned long)xdev->pdev, (unsigned long)pdev);
 	}
-
-
-	xdma_irq_teardown(xdev);
-	disable_msi_msix(pdev);
 
 	remove_engines(xdev);
 	unmap_bars(xdev);
@@ -2550,8 +2508,6 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 		}
 	}
 
-	xdma_irq_teardown(xdev);
-
 	pr_info("xdev 0x%p, done.\n", xdev);
 }
 
@@ -2589,8 +2545,6 @@ pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
 			spin_unlock_irqrestore(&engine->lock, flags);
 		}
 	}
-
-	xdma_irq_setup(xdev);
 
 	xdma_device_flag_clear(xdev, XDEV_FLAG_OFFLINE);
 	pr_info("xdev 0x%p, done.\n", xdev);
