@@ -70,9 +70,10 @@ static void disable_msi_msix(struct pci_dev *pdev)
 	pci_disable_msix(pdev);
 }
 
-static int enable_msi_msix(struct xdma_dev *xdev)
+static int enable_msi_msix(struct hermes_pci_dev *hpdev)
 {
-	struct pci_dev *pdev = xdev->pdev;
+	struct xdma_dev *xdev = hpdev->xdev;
+	struct pci_dev *pdev = hpdev->pdev;
 	int rv, req_nvec;
 
 	if (unlikely(!xdev || !pdev)) {
@@ -190,7 +191,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (rv)
 		goto err_out;
 
-	rv = enable_msi_msix(xdev);
+	rv = enable_msi_msix(hpdev);
 	if (rv < 0)
 		goto err_enable_msix;
 
