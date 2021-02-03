@@ -55,12 +55,49 @@ static const struct pci_device_id pci_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
+static void irq_teardown(struct xdma_dev *xdev)
+{
+	xdma_irq_teardown(xdev);
+}
+
+static int irq_setup(struct xdma_dev *xdev)
+{
+	return xdma_irq_setup(xdev);
+}
+
+static void disable_msi_msix(struct pci_dev *pdev)
+{
+	pci_disable_msix(pdev);
+}
+
+static int enable_msi_msix(struct xdma_dev *xdev)
+{
+	struct pci_dev *pdev = xdev->pdev;
+	int rv, req_nvec;
+
+	if (unlikely(!xdev || !pdev)) {
+		pr_err("xdev 0x%p, pdev 0x%p.\n", xdev, pdev);
+		return -EINVAL;
+	}
+
+	req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max;
+
+	pr_debug("Enabling MSI-X\n");
+	rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec,
+				PCI_IRQ_MSIX);
+	if (rv < 0)
+		pr_debug("Couldn't enable MSI-X mode: %d\n", rv);
+
+	return rv;
+}
+
 static void hpdev_free(struct hermes_pci_dev *hpdev)
 {
 	struct xdma_dev *xdev = hpdev->xdev;
 
 	ida_destroy(&hpdev->c2h_ida_wq.ida);
 	ida_destroy(&hpdev->h2c_ida_wq.ida);
+
 	hpdev->xdev = NULL;
 	pr_info("hpdev 0x%p, xdev 0x%p xdma_device_close.\n", hpdev, xdev);
 	xdma_device_close(hpdev->pdev, xdev);
@@ -154,6 +191,14 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (rv)
 		goto err_out;
 
+	rv = enable_msi_msix(xdev);
+	if (rv < 0)
+		goto err_enable_msix;
+
+	rv = irq_setup(xdev);
+	if (rv < 0)
+		goto err_interrupts;
+
 	init_ida_wq(&hpdev->c2h_ida_wq, hpdev->c2h_channel_max - 1);
 	init_ida_wq(&hpdev->h2c_ida_wq, hpdev->h2c_channel_max - 1);
 
@@ -161,6 +206,10 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	return 0;
 
+err_interrupts:
+	irq_teardown(xdev);
+err_enable_msix:
+	disable_msi_msix(pdev);
 err_out:
 	pr_err("pdev 0x%p, err %d.\n", pdev, rv);
 	hpdev_free(hpdev);
@@ -177,6 +226,9 @@ static void remove_one(struct pci_dev *pdev)
 	hpdev = dev_get_drvdata(&pdev->dev);
 	if (!hpdev)
 		return;
+
+	irq_teardown(hpdev->xdev);
+	disable_msi_msix(pdev);
 
 	hermes_cdev_destroy(hpdev);
 	pr_info("pdev 0x%p, xdev 0x%p, 0x%p.\n",
@@ -198,6 +250,7 @@ static pci_ers_result_t xdma_error_detected(struct pci_dev *pdev,
 		pr_warn("dev 0x%p,0x%p, frozen state error, reset controller\n",
 			pdev, hpdev);
 		xdma_device_offline(pdev, hpdev->xdev);
+		irq_teardown(hpdev->xdev);
 		pci_disable_device(pdev);
 		return PCI_ERS_RESULT_NEED_RESET;
 	case pci_channel_io_perm_failure:
@@ -222,6 +275,7 @@ static pci_ers_result_t xdma_slot_reset(struct pci_dev *pdev)
 	pci_restore_state(pdev);
 	pci_save_state(pdev);
 	xdma_device_online(pdev, hpdev->xdev);
+	irq_setup(hpdev->xdev);
 
 	return PCI_ERS_RESULT_RECOVERED;
 }
