@@ -55,14 +55,14 @@ static const struct pci_device_id pci_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
-static void irq_teardown(struct xdma_dev *xdev)
+static void irq_teardown(struct hermes_pci_dev *hpdev)
 {
-	xdma_irq_teardown(xdev);
+	xdma_irq_teardown(hpdev->xdev);
 }
 
-static int irq_setup(struct xdma_dev *xdev)
+static int irq_setup(struct hermes_pci_dev *hpdev)
 {
-	return xdma_irq_setup(xdev);
+	return xdma_irq_setup(hpdev->xdev);
 }
 
 static void disable_msi_msix(struct pci_dev *pdev)
@@ -70,9 +70,10 @@ static void disable_msi_msix(struct pci_dev *pdev)
 	pci_disable_msix(pdev);
 }
 
-static int enable_msi_msix(struct xdma_dev *xdev)
+static int enable_msi_msix(struct hermes_pci_dev *hpdev)
 {
-	struct pci_dev *pdev = xdev->pdev;
+	struct xdma_dev *xdev = hpdev->xdev;
+	struct pci_dev *pdev = hpdev->pdev;
 	int rv, req_nvec;
 
 	if (unlikely(!xdev || !pdev)) {
@@ -191,11 +192,11 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (rv)
 		goto err_out;
 
-	rv = enable_msi_msix(xdev);
+	rv = enable_msi_msix(hpdev);
 	if (rv < 0)
 		goto err_enable_msix;
 
-	rv = irq_setup(xdev);
+	rv = irq_setup(hpdev);
 	if (rv < 0)
 		goto err_interrupts;
 
@@ -207,7 +208,7 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	return 0;
 
 err_interrupts:
-	irq_teardown(xdev);
+	irq_teardown(hpdev);
 err_enable_msix:
 	disable_msi_msix(pdev);
 err_out:
@@ -227,7 +228,7 @@ static void remove_one(struct pci_dev *pdev)
 	if (!hpdev)
 		return;
 
-	irq_teardown(hpdev->xdev);
+	irq_teardown(hpdev);
 	disable_msi_msix(pdev);
 
 	hermes_cdev_destroy(hpdev);
@@ -250,7 +251,7 @@ static pci_ers_result_t xdma_error_detected(struct pci_dev *pdev,
 		pr_warn("dev 0x%p,0x%p, frozen state error, reset controller\n",
 			pdev, hpdev);
 		xdma_device_offline(pdev, hpdev->xdev);
-		irq_teardown(hpdev->xdev);
+		irq_teardown(hpdev);
 		pci_disable_device(pdev);
 		return PCI_ERS_RESULT_NEED_RESET;
 	case pci_channel_io_perm_failure:
@@ -275,7 +276,7 @@ static pci_ers_result_t xdma_slot_reset(struct pci_dev *pdev)
 	pci_restore_state(pdev);
 	pci_save_state(pdev);
 	xdma_device_online(pdev, hpdev->xdev);
-	irq_setup(hpdev->xdev);
+	irq_setup(hpdev);
 
 	return PCI_ERS_RESULT_RECOVERED;
 }
