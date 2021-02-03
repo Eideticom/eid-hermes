@@ -1327,7 +1327,7 @@ static void irq_teardown(struct xdma_dev *xdev)
 	irq_msix_channel_teardown(xdev);
 }
 
-static int irq_setup(struct xdma_dev *xdev)
+static int xdma_irq_setup(struct xdma_dev *xdev)
 {
 	int rv;
 	pci_keep_intx_enabled(xdev->pdev);
@@ -1338,6 +1338,11 @@ static int irq_setup(struct xdma_dev *xdev)
 	prog_irq_msix_channel(xdev, 0);
 
 	return 0;
+}
+
+static int irq_setup(struct xdma_dev *xdev)
+{
+	return xdma_irq_setup(xdev);
 }
 
 /* transfer_desc_init() - Chains the descriptors as a singly-linked list
