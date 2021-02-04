@@ -77,6 +77,10 @@ struct __attribute__((__packed__)) hermes_cfg {
 	uint32_t ehdssze;
 };
 
+struct ebpf_irq {
+	int irq_line;
+};
+
 struct hermes_dev {
 	struct device dev;
 	struct pci_dev *pdev;
@@ -87,6 +91,8 @@ struct hermes_dev {
 	struct hermes_cfg cfg;
 	struct ida prog_slots;
 	struct ida data_slots;
+
+	struct ebpf_irq *irq;
 };
 
 struct ida_wq {

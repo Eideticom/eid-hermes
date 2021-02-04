@@ -231,6 +231,7 @@ static void hermes_release(struct device *dev)
 {
 	struct hermes_dev *hermes = to_hermes(dev);
 
+	kfree(hermes->irq);
 	kfree(hermes);
 }
 
@@ -274,10 +275,15 @@ int hermes_cdev_create(struct hermes_pci_dev *hpdev)
 	hermes->dev.parent = &pdev->dev;
 	hermes->dev.release = hermes_release;
 
+	hermes->irq = kcalloc(hermes->cfg.eheng, sizeof(*hermes->irq),
+			GFP_KERNEL);
+	if (!hermes->irq)
+		goto out_free;
+
 	hermes->id = ida_simple_get(&hermes_ida, 0, 0, GFP_KERNEL);
 	if (hermes->id < 0) {
 		err = hermes->id;
-		goto out_free;
+		goto out_free_irq;
 	}
 
 	dev_set_name(&hermes->dev, "hermes%d", hermes->id);
@@ -298,6 +304,8 @@ int hermes_cdev_create(struct hermes_pci_dev *hpdev)
 
 out_ida:
 	ida_simple_remove(&hermes_ida, hermes->id);
+out_free_irq:
+	kfree(hermes->irq);
 out_free:
 	kfree(hermes);
 	return err;
