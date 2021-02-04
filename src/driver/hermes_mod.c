@@ -234,37 +234,6 @@ static void xdma_error_resume(struct pci_dev *pdev)
 	pci_cleanup_aer_uncorrect_error_status(pdev);
 }
 
-#if KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE
-static void xdma_reset_prepare(struct pci_dev *pdev)
-{
-	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
-
-	pr_info("dev 0x%p,0x%p.\n", pdev, hpdev);
-	xdma_device_offline(pdev, hpdev->xdev);
-}
-
-static void xdma_reset_done(struct pci_dev *pdev)
-{
-	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
-
-	pr_info("dev 0x%p,0x%p.\n", pdev, hpdev);
-	xdma_device_online(pdev, hpdev->xdev);
-}
-
-#elif KERNEL_VERSION(3, 16, 0) <= LINUX_VERSION_CODE
-static void xdma_reset_notify(struct pci_dev *pdev, bool prepare)
-{
-	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
-
-	pr_info("dev 0x%p,0x%p, prepare %d.\n", pdev, hpdev, prepare);
-
-	if (prepare)
-		xdma_device_offline(pdev, hpdev->xdev);
-	else
-		xdma_device_online(pdev, hpdev->xdev);
-}
-#endif
-
 static int __ida_wq_get(struct ida_wq *ida_wq, int *id)
 {
 	int ret;
@@ -297,12 +266,6 @@ static const struct pci_error_handlers xdma_err_handler = {
 	.error_detected	= xdma_error_detected,
 	.slot_reset	= xdma_slot_reset,
 	.resume		= xdma_error_resume,
-#if KERNEL_VERSION(4, 13, 0) <= LINUX_VERSION_CODE
-	.reset_prepare	= xdma_reset_prepare,
-	.reset_done	= xdma_reset_done,
-#elif KERNEL_VERSION(3, 16, 0) <= LINUX_VERSION_CODE
-	.reset_notify	= xdma_reset_notify,
-#endif
 };
 
 static inline struct xdma_channel *xdma_get_chnl(struct xdma_channel *channels,
