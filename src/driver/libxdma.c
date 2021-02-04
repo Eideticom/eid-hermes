@@ -1214,19 +1214,9 @@ static int enable_msi_msix(struct xdma_dev *xdev, struct pci_dev *pdev)
 	if (msi_msix_capable(pdev, PCI_CAP_ID_MSIX)) {
 		int req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
 		pr_debug("Enabling MSI-X\n");
 		rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec,
 					PCI_IRQ_MSIX);
-#else
-		int i;
-
-		pr_debug("Enabling MSI-X\n");
-		for (i = 0; i < req_nvec; i++)
-			xdev->entry[i].entry = i;
-
-		rv = pci_enable_msix(pdev, xdev->entry, req_nvec);
-#endif
 		if (rv < 0)
 			pr_debug("Couldn't enable MSI-X mode: %d\n", rv);
 	} else {
@@ -1339,11 +1329,7 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 	j = xdev->h2c_channel_max;
 	engine = xdev->engine_h2c;
 	for (i = 0; i < xdev->h2c_channel_max; i++, engine++) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
 		vector = pci_irq_vector(xdev->pdev, i);
-#else
-		vector = xdev->entry[i].vector;
-#endif
 		rv = request_irq(vector, xdma_channel_irq, 0, xdev->mod_name,
 				 engine);
 		if (rv) {
@@ -1357,11 +1343,7 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 
 	engine = xdev->engine_c2h;
 	for (i = 0; i < xdev->c2h_channel_max; i++, j++, engine++) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
 		vector = pci_irq_vector(xdev->pdev, j);
-#else
-		vector = xdev->entry[j].vector;
-#endif
 		rv = request_irq(vector, xdma_channel_irq, 0, xdev->mod_name,
 				 engine);
 		if (rv) {
@@ -2414,26 +2396,6 @@ static int probe_engines(struct xdma_dev *xdev)
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
-static void pci_enable_capability(struct pci_dev *pdev, int cap)
-{
-	pcie_capability_set_word(pdev, PCI_EXP_DEVCTL, cap);
-}
-#else
-static void pci_enable_capability(struct pci_dev *pdev, int cap)
-{
-	u16 v;
-	int pos;
-
-	pos = pci_pcie_cap(pdev);
-	if (pos > 0) {
-		pci_read_config_word(pdev, pos + PCI_EXP_DEVCTL, &v);
-		v |= cap;
-		pci_write_config_word(pdev, pos + PCI_EXP_DEVCTL, v);
-	}
-}
-#endif
-
 void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 			int *h2c_channel_max, int *c2h_channel_max)
 {
@@ -2469,11 +2431,9 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	/* keep INTx enabled */
 	pci_check_intr_pend(pdev);
 
-	/* enable relaxed ordering */
-	pci_enable_capability(pdev, PCI_EXP_DEVCTL_RELAX_EN);
-
-	/* enable extended tag */
-	pci_enable_capability(pdev, PCI_EXP_DEVCTL_EXT_TAG);
+	/* enable relaxed ordering and extended tag */
+	pcie_capability_set_word(pdev, PCI_EXP_DEVCTL,
+			PCI_EXP_DEVCTL_RELAX_EN | PCI_EXP_DEVCTL_EXT_TAG);
 
 	/* force MRRS to be 512 */
 	rv = pcie_set_readrq(pdev, 512);

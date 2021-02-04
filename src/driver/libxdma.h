@@ -36,6 +36,10 @@
 #include <linux/pci.h>
 #include <linux/workqueue.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#error The Hermes driver requires Linux 4.14+
+#endif
+
 /*
  * if the config bar is fixed, the driver does not neeed to search through
  * all of the bars
@@ -413,9 +417,6 @@ struct xdma_dev {
 
 	/* Interrupt management */
 	int irq_line;		/* flag if irq allocated successfully */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,12,0)
-	struct msix_entry entry[32];	/* msi-x vector/entry table */
-#endif
 
 	/* XDMA engine management */
 	struct xdma_engine engine_h2c[XDMA_CHANNEL_NUM_MAX];

@@ -36,6 +36,8 @@ should threfore work for both the QEMU model and the AWS F1 instance
 noted above. This code is hosted in this repo initially and
 ideally will be upstreamed into the [Linux kernel][7].
 
+The driver requires kernel version 4.14 or higher.
+
 ## eBPF Userspace Library
 
 This part of the project implements a userspace library that provides
