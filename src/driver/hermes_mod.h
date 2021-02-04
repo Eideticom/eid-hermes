@@ -89,6 +89,9 @@ struct hermes_dev {
 	struct hermes_cfg cfg;
 	struct ida prog_slots;
 	struct ida data_slots;
+
+	/* MSI-X vector for eBPF engines */
+	int irq_lines[EBPF_ENG_NUM_MAX];
 };
 
 struct ida_wq {

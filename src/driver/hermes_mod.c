@@ -55,14 +55,74 @@ static const struct pci_device_id pci_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
+struct ebpf_irq_arg {
+	struct hermes_dev *hdev;
+	int eng;
+} ebpf_irq_args[EBPF_ENG_NUM_MAX];
+
+static void ebpf_msix_teardown(struct hermes_dev *hdev)
+{
+	int i;
+
+	for (i = 0; i < hdev->cfg.eheng; i++) {
+		if (!hdev->irq_lines[i])
+			break;
+		pr_debug("Release IRQ#%d for eBPF engine %d\n",
+			hdev->irq_lines[i], i);
+		free_irq(hdev->irq_lines[i], &ebpf_irq_args[i]);
+	}
+}
+
 static void irq_teardown(struct hermes_pci_dev *hpdev)
 {
 	xdma_irq_teardown(hpdev->xdev);
+	ebpf_msix_teardown(hpdev->hdev);
+}
+
+static irqreturn_t ebpf_irq(int irq, void *ptr)
+{
+	struct ebpf_irq_arg *arg = ptr;
+	pr_debug("(irq=%d) eBPF interrupt handler\n", irq);
+
+	return IRQ_HANDLED;
+}
+
+static int ebpf_irq_setup(struct hermes_dev *hdev, int first)
+{
+	unsigned int vector;
+	int i, rc;
+
+	for (i = 0; i < hdev->cfg.eheng; i++) {
+		vector = pci_irq_vector(hdev->pdev, first + i);
+		ebpf_irq_args[i].hdev = hdev;
+		ebpf_irq_args[i].eng = i;
+		rc = request_irq(vector, ebpf_irq, 0, DRV_MODULE_NAME,
+				 &ebpf_irq_args[i]);
+		if (rc) {
+			pr_err("request irq#%d failed %d, eBPF engine %d.\n",
+				vector, rc, i);
+			return rc;
+		}
+		pr_info("eBPF engine %d, irq#%d.\n", i, vector);
+		hdev->irq_lines[i] = vector;
+	}
+
+	return 0;
 }
 
 static int irq_setup(struct hermes_pci_dev *hpdev)
 {
-	return xdma_irq_setup(hpdev->xdev);
+	struct xdma_dev *xdev = hpdev->xdev;
+	int rc;
+
+	rc = xdma_irq_setup(xdev);
+	if (rc)
+		goto out;
+
+	rc = ebpf_irq_setup(hpdev->hdev, xdev->h2c_channel_max +
+			xdev->c2h_channel_max);
+out:
+	return rc;
 }
 
 static void disable_msi_msix(struct pci_dev *pdev)
@@ -72,6 +132,7 @@ static void disable_msi_msix(struct pci_dev *pdev)
 
 static int enable_msi_msix(struct hermes_pci_dev *hpdev)
 {
+	struct hermes_dev *hdev = hpdev->hdev;
 	struct xdma_dev *xdev = hpdev->xdev;
 	struct pci_dev *pdev = hpdev->pdev;
 	int rv, req_nvec;
@@ -81,7 +142,8 @@ static int enable_msi_msix(struct hermes_pci_dev *hpdev)
 		return -EINVAL;
 	}
 
-	req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max;
+	req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max +
+		hdev->cfg.eheng;
 
 	pr_debug("Enabling MSI-X\n");
 	rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec,
