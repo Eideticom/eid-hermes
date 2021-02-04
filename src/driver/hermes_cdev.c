@@ -244,6 +244,11 @@ static int hermes_read_cfg(struct hermes_pci_dev *hpdev)
 	cfg = &hpdev->hdev->cfg;
 
 	memcpy_fromio(cfg, bar0, sizeof(*cfg));
+	if (cfg->eheng > EBPF_ENG_NUM_MAX) {
+		dev_warn(&hpdev->hdev->dev, "Number of eBPF engines (%d) exceeds maximum. Decreasing to %d.\n",
+				cfg->eheng, EBPF_ENG_NUM_MAX);
+		cfg->eheng = EBPF_ENG_NUM_MAX;
+	}
 	pr_debug("ehver: 0x%x ehbld: %s eheng: 0x%x ehpslot: 0x%x ehdslot: 0x%x ehpsoff: 0x%x ehpssze: 0x%x ehdsoff: 0x%x ehdssze: 0x%x\n",
 			cfg->ehver, cfg->ehbld, cfg->eheng, cfg->ehpslot,
 			cfg->ehdslot, cfg->ehpsoff, cfg->ehpssze, cfg->ehdsoff,

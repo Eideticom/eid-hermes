@@ -56,6 +56,8 @@
 #define MAGIC_ENGINE	0xEEEEEEEEUL
 #define MAGIC_DEVICE	0xDDDDDDDDUL
 
+#define EBPF_ENG_NUM_MAX	XDMA_CHANNEL_NUM_MAX
+
 extern unsigned int desc_blen_max;
 extern unsigned int sgdma_timeout;
 
