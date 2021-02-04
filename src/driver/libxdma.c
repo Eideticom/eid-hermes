@@ -1165,41 +1165,6 @@ fail:
 #endif
 }
 
-/*
- * code to detect if MSI/MSI-X capability exists is derived
- * from linux/pci/msi.c - pci_msi_check_device
- */
-
-#ifndef arch_msi_check_device
-static int arch_msi_check_device(struct pci_dev *dev, int nvec, int type)
-{
-	return 0;
-}
-#endif
-
-/* type = PCI_CAP_ID_MSI or PCI_CAP_ID_MSIX */
-static int msi_msix_capable(struct pci_dev *dev, int type)
-{
-	struct pci_bus *bus;
-	int ret;
-
-	if (!dev || dev->no_msi)
-		return 0;
-
-	for (bus = dev->bus; bus; bus = bus->parent)
-		if (bus->bus_flags & PCI_BUS_FLAGS_NO_MSI)
-			return 0;
-
-	ret = arch_msi_check_device(dev, 1, type);
-	if (ret)
-		return 0;
-
-	if (!pci_find_capability(dev, type))
-		return 0;
-
-	return 1;
-}
-
 static void disable_msi_msix(struct pci_dev *pdev)
 {
 	pci_disable_msix(pdev);
@@ -1208,25 +1173,20 @@ static void disable_msi_msix(struct pci_dev *pdev)
 static int enable_msi_msix(struct xdma_dev *xdev)
 {
 	struct pci_dev *pdev = xdev->pdev;
-	int rv = 0;
+	int rv, req_nvec;
 
 	if (unlikely(!xdev || !pdev)) {
 		pr_err("xdev 0x%p, pdev 0x%p.\n", xdev, pdev);
 		return -EINVAL;
 	}
 
-	if (msi_msix_capable(pdev, PCI_CAP_ID_MSIX)) {
-		int req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max;
+	req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max;
 
-		pr_debug("Enabling MSI-X\n");
-		rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec,
-					PCI_IRQ_MSIX);
-		if (rv < 0)
-			pr_debug("Couldn't enable MSI-X mode: %d\n", rv);
-	} else {
-		pr_debug("MSI-X detection failed\n");
-		rv = -1;
-	}
+	pr_debug("Enabling MSI-X\n");
+	rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec,
+				PCI_IRQ_MSIX);
+	if (rv < 0)
+		pr_debug("Couldn't enable MSI-X mode: %d\n", rv);
 
 	return rv;
 }
