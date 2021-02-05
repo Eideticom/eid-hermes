@@ -1250,7 +1250,7 @@ static void prog_irq_msix_channel(struct xdma_dev *xdev, bool clear)
 	}
 }
 
-static void irq_msix_channel_teardown(struct xdma_dev *xdev)
+static void xdma_irq_teardown(struct xdma_dev *xdev)
 {
 	struct xdma_engine *engine;
 	int j = 0;
@@ -1324,7 +1324,7 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 
 static void irq_teardown(struct xdma_dev *xdev)
 {
-	irq_msix_channel_teardown(xdev);
+	xdma_irq_teardown(xdev);
 }
 
 static int xdma_irq_setup(struct xdma_dev *xdev)
