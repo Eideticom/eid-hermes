@@ -1256,6 +1256,9 @@ static void xdma_irq_teardown(struct xdma_dev *xdev)
 	int j = 0;
 	int i = 0;
 
+	channel_interrupts_disable(xdev);
+	read_interrupts(xdev);
+
 	prog_irq_msix_channel(xdev, 1);
 
 	engine = xdev->engine_h2c;
@@ -1336,6 +1339,9 @@ static int xdma_irq_setup(struct xdma_dev *xdev)
 	if (rv)
 		return rv;
 	prog_irq_msix_channel(xdev, 0);
+
+	channel_interrupts_enable(xdev);
+	read_interrupts(xdev);
 
 	return 0;
 }
@@ -2442,11 +2448,6 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	if (rv < 0)
 		goto err_interrupts;
 
-	channel_interrupts_enable(xdev);
-
-	/* Flush writes */
-	read_interrupts(xdev);
-
 	*h2c_channel_max = xdev->h2c_channel_max;
 	*c2h_channel_max = xdev->c2h_channel_max;
 
@@ -2491,9 +2492,6 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 		pr_debug("pci_dev(0x%lx) != pdev(0x%lx)\n",
 			(unsigned long)xdev->pdev, (unsigned long)pdev);
 	}
-
-	channel_interrupts_disable(xdev);
-	read_interrupts(xdev);
 
 	irq_teardown(xdev);
 	disable_msi_msix(pdev);
@@ -2561,9 +2559,6 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 		}
 	}
 
-	/* turn off interrupts */
-	channel_interrupts_disable(xdev);
-	read_interrupts(xdev);
 	irq_teardown(xdev);
 
 	pr_info("xdev 0x%p, done.\n", xdev);
@@ -2605,9 +2600,6 @@ pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
 	}
 
 	irq_setup(xdev);
-
-	channel_interrupts_enable(xdev);
-	read_interrupts(xdev);
 
 	xdma_device_flag_clear(xdev, XDEV_FLAG_OFFLINE);
 	pr_info("xdev 0x%p, done.\n", xdev);
