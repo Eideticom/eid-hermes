@@ -250,21 +250,21 @@ static void check_nonzero_interrupt_status(struct xdma_dev *xdev)
 }
 
 /* channel_interrupts_enable -- Enable interrupts we are interested in */
-static void channel_interrupts_enable(struct xdma_dev *xdev, u32 mask)
+static void channel_interrupts_enable(struct xdma_dev *xdev)
 {
 	struct interrupt_regs *reg = (struct interrupt_regs *)
 		(xdev->bar[xdev->config_bar_idx] + XDMA_OFS_INT_CTRL);
 
-	write_register(mask, &reg->channel_int_enable_w1s, XDMA_OFS_INT_CTRL);
+	write_register(~0, &reg->channel_int_enable_w1s, XDMA_OFS_INT_CTRL);
 }
 
 /* channel_interrupts_disable -- Disable interrupts we not interested in */
-static void channel_interrupts_disable(struct xdma_dev *xdev, u32 mask)
+static void channel_interrupts_disable(struct xdma_dev *xdev)
 {
 	struct interrupt_regs *reg = (struct interrupt_regs *)
 		(xdev->bar[xdev->config_bar_idx] + XDMA_OFS_INT_CTRL);
 
-	write_register(mask, &reg->channel_int_enable_w1c, XDMA_OFS_INT_CTRL);
+	write_register(~0, &reg->channel_int_enable_w1c, XDMA_OFS_INT_CTRL);
 }
 
 /* read_interrupts -- Print the interrupt controller status */
@@ -2460,7 +2460,7 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 
 	check_nonzero_interrupt_status(xdev);
 	/* explicitely zero all interrupt enable masks */
-	channel_interrupts_disable(xdev, ~0);
+	channel_interrupts_disable(xdev);
 	read_interrupts(xdev);
 
 	rv = probe_engines(xdev);
@@ -2475,7 +2475,7 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	if (rv < 0)
 		goto err_interrupts;
 
-	channel_interrupts_enable(xdev, ~0);
+	channel_interrupts_enable(xdev);
 
 	/* Flush writes */
 	read_interrupts(xdev);
@@ -2525,7 +2525,7 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 			(unsigned long)xdev->pdev, (unsigned long)pdev);
 	}
 
-	channel_interrupts_disable(xdev, ~0);
+	channel_interrupts_disable(xdev);
 	read_interrupts(xdev);
 
 	irq_teardown(xdev);
@@ -2595,7 +2595,7 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 	}
 
 	/* turn off interrupts */
-	channel_interrupts_disable(xdev, ~0);
+	channel_interrupts_disable(xdev);
 	read_interrupts(xdev);
 	irq_teardown(xdev);
 
@@ -2639,7 +2639,7 @@ pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
 
 	irq_setup(xdev);
 
-	channel_interrupts_enable(xdev, ~0);
+	channel_interrupts_enable(xdev);
 	read_interrupts(xdev);
 
 	xdma_device_flag_clear(xdev, XDEV_FLAG_OFFLINE);
