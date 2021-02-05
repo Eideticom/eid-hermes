@@ -249,22 +249,24 @@ static void check_nonzero_interrupt_status(struct xdma_dev *xdev)
 			dev_name(&xdev->pdev->dev), xdev->idx, w);
 }
 
-/* channel_interrupts_enable -- Enable interrupts we are interested in */
-static void channel_interrupts_enable(struct xdma_dev *xdev)
+static void channel_interrupts_mask(struct xdma_dev *xdev, u32 mask)
 {
 	struct interrupt_regs *reg = (struct interrupt_regs *)
 		(xdev->bar[xdev->config_bar_idx] + XDMA_OFS_INT_CTRL);
 
-	write_register(~0, &reg->channel_int_enable_w1s, XDMA_OFS_INT_CTRL);
+	write_register(mask, &reg->channel_int_enable, XDMA_OFS_INT_CTRL);
+}
+
+/* channel_interrupts_enable -- Enable interrupts we are interested in */
+static void channel_interrupts_enable(struct xdma_dev *xdev)
+{
+	channel_interrupts_mask(xdev, ~0);
 }
 
 /* channel_interrupts_disable -- Disable interrupts we not interested in */
 static void channel_interrupts_disable(struct xdma_dev *xdev)
 {
-	struct interrupt_regs *reg = (struct interrupt_regs *)
-		(xdev->bar[xdev->config_bar_idx] + XDMA_OFS_INT_CTRL);
-
-	write_register(~0, &reg->channel_int_enable_w1c, XDMA_OFS_INT_CTRL);
+	channel_interrupts_mask(xdev, 0);
 }
 
 /* read_interrupts -- Print the interrupt controller status */
