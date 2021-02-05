@@ -1250,7 +1250,7 @@ static void prog_irq_msix_channel(struct xdma_dev *xdev, bool clear)
 	}
 }
 
-static void irq_msix_channel_teardown(struct xdma_dev *xdev)
+static void xdma_irq_teardown(struct xdma_dev *xdev)
 {
 	struct xdma_engine *engine;
 	int j = 0;
@@ -1320,11 +1320,6 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 	}
 
 	return 0;
-}
-
-static void irq_teardown(struct xdma_dev *xdev)
-{
-	irq_msix_channel_teardown(xdev);
 }
 
 static int xdma_irq_setup(struct xdma_dev *xdev)
@@ -2449,7 +2444,7 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	return (void *)xdev;
 
 err_interrupts:
-	irq_teardown(xdev);
+	xdma_irq_teardown(xdev);
 err_enable_msix:
 	disable_msi_msix(pdev);
 err_engines:
@@ -2490,7 +2485,7 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_hndl)
 	channel_interrupts_disable(xdev);
 	read_interrupts(xdev);
 
-	irq_teardown(xdev);
+	xdma_irq_teardown(xdev);
 	disable_msi_msix(pdev);
 
 	remove_engines(xdev);
@@ -2559,7 +2554,7 @@ void xdma_device_offline(struct pci_dev *pdev, void *dev_hndl)
 	/* turn off interrupts */
 	channel_interrupts_disable(xdev);
 	read_interrupts(xdev);
-	irq_teardown(xdev);
+	xdma_irq_teardown(xdev);
 
 	pr_info("xdev 0x%p, done.\n", xdev);
 }
