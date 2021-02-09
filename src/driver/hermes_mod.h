@@ -125,6 +125,12 @@ struct ebpf_irq {
 	int irq_line;
 };
 
+struct ida_wq {
+	struct ida ida;
+	unsigned int max;
+	wait_queue_head_t wq;
+};
+
 struct hermes_dev {
 	struct device dev;
 	struct pci_dev *pdev;
@@ -140,12 +146,6 @@ struct hermes_dev {
 	struct hermes_cmd_ctrl __iomem *cmds_ctrl;
 
 	struct ebpf_irq *irq;
-};
-
-struct ida_wq {
-	struct ida ida;
-	unsigned int max;
-	wait_queue_head_t wq;
 };
 
 /* XDMA PCIe device specific book-keeping */
