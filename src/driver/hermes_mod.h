@@ -129,6 +129,12 @@ union __attribute__((__packed__)) hermes_cmd_ctrl {
 	uint8_t ehcmdctrl;
 };
 
+struct ida_wq {
+	struct ida ida;
+	unsigned int max;
+	wait_queue_head_t wq;
+};
+
 struct hermes_dev {
 	struct device dev;
 	struct pci_dev *pdev;
@@ -147,12 +153,6 @@ struct hermes_dev {
 	int irq_lines[EBPF_ENG_NUM_MAX];
 	/* wait queue for command completion */
 	wait_queue_head_t wq[EBPF_ENG_NUM_MAX];
-};
-
-struct ida_wq {
-	struct ida ida;
-	unsigned int max;
-	wait_queue_head_t wq;
 };
 
 /* XDMA PCIe device specific book-keeping */
