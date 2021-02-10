@@ -17,7 +17,8 @@ class DriverTests(unittest.TestCase):
     ehpslot = 16
     ehpssze = 1024 * 1024
     ehdssze = 1024 * 1024
-    prog = b'x' * 4096
+    prog = bytes.fromhex('b7 00 00 00 00 00 00 00'  # r0 = 0
+                       + '95 00 00 00 00 00 00 00') # ret
     payloadSmall  = b'z' * 256
     payloadMedium = b'z' * 4096
     payloadLarge  = b'z' * ehdssze
