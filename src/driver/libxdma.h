@@ -498,4 +498,7 @@ void xdma_device_close(struct pci_dev *pdev, void *dev_handle);
  */
 ssize_t xdma_xfer_submit(void *dev_hndl, int channel, bool write, u64 ep_addr,
 			struct sg_table *sgt, bool dma_mapped, int timeout_ms);
+
+void xdma_irq_teardown(struct xdma_dev *xdev);
+int xdma_irq_setup(struct xdma_dev *xdev);
 #endif /* XDMA_LIB_H */
