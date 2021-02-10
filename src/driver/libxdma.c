@@ -1327,7 +1327,7 @@ static void irq_teardown(struct xdma_dev *xdev)
 	irq_msix_channel_teardown(xdev);
 }
 
-static int irq_setup(struct xdma_dev *xdev)
+static int xdma_irq_setup(struct xdma_dev *xdev)
 {
 	int rv;
 	pci_keep_intx_enabled(xdev->pdev);
@@ -2433,7 +2433,7 @@ void *xdma_device_open(const char *mname, struct pci_dev *pdev,
 	if (rv < 0)
 		goto err_enable_msix;
 
-	rv = irq_setup(xdev);
+	rv = xdma_irq_setup(xdev);
 	if (rv < 0)
 		goto err_interrupts;
 
@@ -2599,7 +2599,7 @@ pr_info("pdev 0x%p, xdev 0x%p.\n", pdev, xdev);
 		}
 	}
 
-	irq_setup(xdev);
+	xdma_irq_setup(xdev);
 
 	channel_interrupts_enable(xdev);
 	read_interrupts(xdev);
