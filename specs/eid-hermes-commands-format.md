@@ -183,6 +183,7 @@ This command executes a pre-loaded eBPF program against a pre-loaded data slot.
 | 0x02   | Requested program slot does not exist or is not allocated             |
 | 0x03   | Requested data slot does not exist or is not allocated                |
 | 0x05   | An error was encountered during eBPF execution. Command Response bytes 15:08 is platform-specific. On QEMU, this corresponds to the error returned by ubpf_load() or ubpf_exec(). For the FPGA, it is TBD. |
+| 0x06   | The Command opcode is invalid |
 
 **Table 13: Run Program Slot status codes**
 
