@@ -274,7 +274,11 @@ static void xdma_error_resume(struct pci_dev *pdev)
 	struct hermes_pci_dev *hpdev = dev_get_drvdata(&pdev->dev);
 
 	pr_info("dev 0x%p,0x%p.\n", pdev, hpdev);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
 	pci_cleanup_aer_uncorrect_error_status(pdev);
+#else
+	pci_aer_clear_nonfatal_status(pdev);
+#endif
 }
 
 static int __ida_wq_get(struct ida_wq *ida_wq, int *id)
