@@ -1,0 +1,130 @@
+name: eid-hermes tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+        #  driver:
+        #    runs-on: ubuntu-20.04
+        #    steps:
+        #      - uses: actions/checkout@v2
+        #        with:
+        #          ref: ${{ github.event.pull_request.head.sha }}
+        #      - name: Compile driver
+        #        working-directory: ./src/driver
+        #        run: make
+        #      - name: Load driver
+        #        working-directory: ./src/driver
+        #        run: |
+        #          sudo insmod ./hermes.ko
+        #          lsmod | grep -q hermes
+        #      - name: Remove driver
+        #        run: |
+        #          sudo rmmod hermes
+        #          if lsmod | grep -q hermes; then
+        #                echo "Hermes module still loaded"
+        #                exit 1
+        #          fi
+        #
+        #  examples:
+        #    runs-on: ubuntu-20.04
+        #    steps:
+        #      - uses: actions/checkout@v2
+        #        with:
+        #          ref: ${{ github.event.pull_request.head.sha }}
+        #      - name: Compile examples
+        #        run: make -C examples
+
+  all:
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Install dependencies
+        run: sudo apt-get install -y qemu-utils cloud-image-utils sshpass
+
+      - name: Checkout eid-hermes-qemu
+        uses: actions/checkout@v2
+        with:
+          repository: Eideticom/eid-hermes-qemu
+          path: eid-hermes-qemu
+
+        # The gen-images script sets an ansible playbook to run on the VM's
+        # first boot, which installs the hermes driver (master branch).
+        # This is not desired on CI, so remove it.
+      - name: Patch gen-images script
+        working-directory: ./eid-hermes-qemu/docker/hermes
+        run: |
+          sed -i 's/runcmd/power_state/' gen-images
+          sed -i 's/.*git.*/  mode: poweroff/' gen-images
+          sed -i '/ansible/d' gen-images
+          sed -i '/emacs-nox/d' gen-images
+          sed -i '/tree/d' gen-images
+          cat gen-images
+          lscpu
+
+      - name: Generate base image
+        working-directory: ./eid-hermes-qemu
+        run: ./docker/hermes/gen-images
+
+      - name: Install uBPF
+        run: |
+          wget https://github.com/iovisor/ubpf/archive/master.zip
+          unzip master.zip
+          cd ubpf-master
+          make -C vm
+          sudo make -C vm install
+
+      - name: Compile QEMU
+        working-directory: ./eid-hermes-qemu
+        run: |
+          ./configure --target-list=x86_64-softmmu --enable-libubpf
+          make
+
+      - name: Launch QEMU
+        working-directory: ./eid-hermes-qemu
+        run: |
+          ./x86_64-softmmu/qemu-system-x86_64 -m 4096 -smp 4 -drive file=images/hermes-vm.qcow2,format=qcow2 -drive file=images/hermes-vm-seed.qcow2,format=raw,media=cdrom -net nic,model=virtio -net user,hostfwd=tcp::2222-:22 -device hermes -nographic
+          ./x86_64-softmmu/qemu-system-x86_64 -m 4096 -smp 4 -drive file=images/hermes-vm.qcow2,format=qcow2 -drive file=images/hermes-vm-seed.qcow2,format=raw,media=cdrom -net nic,model=virtio -net user,hostfwd=tcp::2222-:22 -device hermes -daemonize
+
+      - name: list open ports
+        run: sudo netstat -tulpn | grep LISTEN
+
+      - name: Test ssh connection
+        run: sshpass -p zeus ssh -vvv -p2222 -o ConnectTimeout=600 -o StrictHostKeyChecking=no hermes@localhost 'whoami'
+        continue-on-error: true
+
+      - name: Test appleboy action
+        uses: appleboy/ssh-action@master
+        continue-on-error: true
+        with:
+          host: localhost
+          username: hermes
+          password: zeus
+          port: 2222
+          script: whoami
+          timeout: 600s
+          debug: true
+
+      - name: Test garygrossgarten action
+        uses: garygrossgarten/github-action-ssh@release
+        continue-on-error: true
+        with:
+          command: whoami
+          host: localhost
+          username: hermes
+          password: zeus
+          port: 2222
+
+      - name: Test fifsky action
+        uses: fifsky/ssh-action@master
+        continue-on-error: true
+        with:
+          command: whoami
+          host: localhost
+          user: hermes
+          pass: zeus
+          port: 2222
+          args: -vvv -o ConnectTimeout=600 -o StrictHostKeyChecking=no
+
+      - name: list open ports
+        run: sudo netstat -tulpn | grep LISTEN
