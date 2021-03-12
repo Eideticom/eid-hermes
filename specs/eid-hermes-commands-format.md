@@ -164,10 +164,12 @@ This command may return the following status:
 
 This command executes a pre-loaded eBPF program against a pre-loaded data slot.
 
-| Bytes | Description     |
-|-------|-----------------|
-| 08    | Program Slot ID |
-| 09    | Data Slot ID    |
+| Bytes | Description                |
+|-------|----------------------------|
+| 08    | Program Slot ID            |
+| 09    | Data Slot ID               |
+| 10:11 | Reserved                   |
+| 12:15 | Program Length (in bytes) |
 
 **Table 11: Run Program Command Request**
 
