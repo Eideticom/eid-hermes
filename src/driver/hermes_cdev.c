@@ -44,6 +44,7 @@ struct hermes_env {
 	struct hermes_dev *hermes;
 	int32_t prog_slot;
 	int32_t data_slot;
+	int32_t prog_len;
 };
 
 static inline void hermes_release_slot_prog(struct hermes_env *env)
@@ -174,6 +175,7 @@ static long hermes_download_program(struct hermes_env *env,
 			argp->len, cfg->ehpssze);
 		return -EINVAL;
 	}
+	env->prog_len = argp->len;
 
 	if (env->prog_slot < 0) {
 		env->prog_slot = hermes_request_slot_prog(hpdev->hdev);
