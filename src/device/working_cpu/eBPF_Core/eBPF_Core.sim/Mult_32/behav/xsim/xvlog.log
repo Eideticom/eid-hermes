@@ -1,0 +1,5 @@
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/sources_1/imports/UofCProjectHermes/Mult_32bit.sv" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Mult_32bit
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/sim_1/new/tb_Mult_32bit.sv" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module tb_Mult_32bit
+WARNING: [VRFC 10-2581] 2147483648 as 32-bit signed integer overflows, using -2147483648 instead [/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/sim_1/new/tb_Mult_32bit.sv:32]

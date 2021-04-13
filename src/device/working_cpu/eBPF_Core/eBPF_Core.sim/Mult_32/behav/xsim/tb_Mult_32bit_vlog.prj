@@ -1,0 +1,10 @@
+# compile verilog/system verilog design source files
+sv xil_defaultlib  --include "../../../../eBPF_Core.srcs/sources_1/imports/UofCProjectHermes" --include "../../../../eBPF_Core.srcs/sim_1/new" \
+"../../../../eBPF_Core.srcs/sources_1/imports/UofCProjectHermes/Mult_32bit.sv" \
+"../../../../eBPF_Core.srcs/sim_1/new/tb_Mult_32bit.sv" \
+
+# compile glbl module
+verilog xil_defaultlib "glbl.v"
+
+# Do not sort compile order
+nosort

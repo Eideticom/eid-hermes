@@ -1,0 +1,12 @@
+#-----------------------------------------------------------
+# Webtalk v2019.2.1 (64-bit)
+# SW Build 2729669 on Thu Dec  5 04:48:12 MST 2019
+# IP Build 2729494 on Thu Dec  5 07:38:25 MST 2019
+# Start of session at: Tue Dec  1 13:46:35 2020
+# Process ID: 19219
+# Current directory: /home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.sim/Adder_64/behav/xsim
+# Command line: wbtcv -mode batch -source /home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.sim/Adder_64/behav/xsim/xsim.dir/tb_Adder_64bit_behav/webtalk/xsim_webtalk.tcl -notrace
+# Log file: /home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.sim/Adder_64/behav/xsim/webtalk.log
+# Journal file: /home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.sim/Adder_64/behav/xsim/webtalk.jou
+#-----------------------------------------------------------
+source /home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.sim/Adder_64/behav/xsim/xsim.dir/tb_Adder_64bit_behav/webtalk/xsim_webtalk.tcl -notrace

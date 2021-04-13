@@ -1,0 +1,7 @@
+0.6
+2019.2
+Dec  5 2019
+04:51:02
+/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.sim/Negation_32/behav/xsim/glbl.v,1573089660,verilog,,,,glbl,,,,,,,,
+/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/Negation_32/new/tb_Negation_32bit.sv,1609018231,systemVerilog,,,,tb_Negation_32bit,,,../../../../eBPF_Core.srcs/sim_1/new;../../../../eBPF_Core.srcs/sources_1/imports/UofCProjectHermes,,,,,
+/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/sources_1/imports/UofCProjectHermes/Negation_32bit.sv,1608330972,systemVerilog,,/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/Negation_32/new/tb_Negation_32bit.sv,,Negation_32bit,,,../../../../eBPF_Core.srcs/sim_1/new;../../../../eBPF_Core.srcs/sources_1/imports/UofCProjectHermes,,,,,

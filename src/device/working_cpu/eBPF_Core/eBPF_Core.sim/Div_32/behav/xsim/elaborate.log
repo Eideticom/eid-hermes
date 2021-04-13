@@ -1,0 +1,15 @@
+Vivado Simulator 2019.2
+Copyright 1986-1999, 2001-2019 Xilinx, Inc. All Rights Reserved.
+Running: /home/spencer/opt/Xilinx/Vivado/2019.2/bin/unwrapped/lnx64.o/xelab -wto b1d78080d7e346308dc6047affadb438 --incr --debug typical --relax --mt 8 -L xil_defaultlib -L unisims_ver -L unimacro_ver -L secureip --snapshot tb_Div_32bit_behav xil_defaultlib.tb_Div_32bit xil_defaultlib.glbl -log elaborate.log 
+Using 8 slave threads.
+Starting static elaboration
+Pass Through NonSizing Optimizer
+WARNING: [VRFC 10-3091] actual bit length 64 differs from formal bit length 32 for port 'a' [/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/Div_32/new/tb_Div_32bit.sv:39]
+Completed static elaboration
+Starting simulation data flow analysis
+Completed simulation data flow analysis
+Time Resolution for simulation is 1ps
+Compiling module xil_defaultlib.Div_32bit
+Compiling module xil_defaultlib.tb_Div_32bit
+Compiling module xil_defaultlib.glbl
+Built simulation snapshot tb_Div_32bit_behav
