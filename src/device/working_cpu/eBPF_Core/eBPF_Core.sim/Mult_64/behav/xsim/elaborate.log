@@ -1,9 +1,0 @@
-Vivado Simulator 2019.2
-Copyright 1986-1999, 2001-2019 Xilinx, Inc. All Rights Reserved.
-Running: /home/spencer/opt/Xilinx/Vivado/2019.2/bin/unwrapped/lnx64.o/xelab -wto b1d78080d7e346308dc6047affadb438 --incr --debug typical --relax --mt 8 -L xil_defaultlib -L unisims_ver -L unimacro_ver -L secureip --snapshot tb_Mult_64bit_behav xil_defaultlib.tb_Mult_64bit xil_defaultlib.glbl -log elaborate.log 
-Using 8 slave threads.
-Starting static elaboration
-Pass Through NonSizing Optimizer
-WARNING: [VRFC 10-3823] variable 'y' might have multiple concurrent drivers [/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/sources_1/imports/UofCProjectHermes/Mult_64bit.sv:32]
-Completed static elaboration
-INFO: [XSIM 43-4323] No Change in HDL. Linking previously generated obj files to create kernel

@@ -1,3 +1,0 @@
-Vivado Simulator 2019.2
-Time resolution is 1 ps
-$finish called at time : 280 ns : File "/home/spencer/Documents/GitHub/UofCProjectHermes/eBPF_Core/eBPF_Core.srcs/Adder_32/new/tb_Adder_32bit.sv" Line 75
