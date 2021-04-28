@@ -13,7 +13,7 @@ device, which can be used by an userspace program to interact with the device.
 ## Syscalls
 
 The `/dev/hermesX` device file supports the `open`, `close`, `ioctl`, `write`
-and `read` syscalls.
+`read` and `fsync` syscalls.
 
 Programs can be sent to the device using an `ioctl`: the request number and the
 pointer structure are defined [here][3]. A program slot is automatically
@@ -22,6 +22,14 @@ allocated upon the first `ioctl` and reused for subsequent `ioctl`s.
 Data can be written/read from the device using the `write`/`read` syscalls. A
 data slot is automatically allocated upon the first `write` and reused for
 subsequent `write`s/`read`s.
+
+Programs can be executed by either passing the `RWF_SYNC` flag to a `pwritev2`
+syscall (in which case the driver will first write the program then immediately
+execute the program) or by using the `fsync` syscall. These syscalls expect the
+program to exit with 0 and will fail with errno `ENOEXEC` if that does not
+happen. Programmers that need to know the eBPF return code must write their
+eBPF programs so that the return code is written into a known offset of the
+data slot, which can then be `read`.
 
 ## Example
 

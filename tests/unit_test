@@ -17,7 +17,8 @@ class DriverTests(unittest.TestCase):
     ehpslot = 16
     ehpssze = 1024 * 1024
     ehdssze = 1024 * 1024
-    prog = b'x' * 4096
+    prog = bytes.fromhex('b7 00 00 00 00 00 00 00'  # r0 = 0
+                       + '95 00 00 00 00 00 00 00') # ret
     payloadSmall  = b'z' * 256
     payloadMedium = b'z' * 4096
     payloadLarge  = b'z' * ehdssze
@@ -43,21 +44,23 @@ class DriverTests(unittest.TestCase):
             ret = fcntl.ioctl(self.hermes, cmd, progArgp)
         self.assertEqual(ret, 0)
 
-    def _testWriteReadv(self, payloads, rbuffs, rsize=None, woff=0, roff=0, wflags=0, rflags=0):
+    def _testWriteReadv(self, payloads, rbuffs, prog=None, rsize=None, woff=0, roff=0, wflags=0, rflags=0):
         wsize = sum([len(p) for p in payloads])
+        if not prog:
+            prog = self.prog
         if not rsize:
             rsize = sum([len(b) for b in rbuffs])
-        self._sendProgram()
+        self._sendProgram(prog)
         ret = os.pwritev(self.hermes, payloads, woff, wflags)
         self.assertEqual(ret, wsize)
         ret = os.preadv(self.hermes, rbuffs, roff, rflags)
         self.assertEqual(ret, rsize)
 
-    def _testWriteRead(self, payload, woff=0, roff=0, rsize=None):
+    def _testWriteRead(self, payload, prog=None, woff=0, roff=0, rsize=None):
         if not rsize:
             rsize = len(payload)
         rbuffs = [bytearray(rsize)]
-        self._testWriteReadv([payload], rbuffs, rsize, woff, roff)
+        self._testWriteReadv([payload], rbuffs, prog, rsize, woff, roff)
 
     def testSendProgram(self):
         self._sendProgram()
@@ -151,19 +154,35 @@ class DriverTests(unittest.TestCase):
         rbuffs = [bytearray(wlen)]
         self._testWriteReadv(payloads, rbuffs)
 
-    def testWritevFlagNotSupported(self):
-        payloads = [self.payloadSmall]
-        rbuffs = [bytearray(len(payloads[0]))]
-        with self.assertRaisesRegex(OSError, "Operation not supported"):
-            self._testWriteReadv(payloads, rbuffs, wflags=os.RWF_DSYNC)
-        with self.assertRaisesRegex(OSError, "Operation not supported"):
-            self._testWriteReadv(payloads, rbuffs, wflags=os.RWF_SYNC)
-
     def testReadvFlagNotSupported(self):
         payloads = [self.payloadSmall]
         rbuffs = [bytearray(len(payloads[0]))]
         with self.assertRaisesRegex(OSError, "Operation not supported"):
             self._testWriteReadv(payloads, rbuffs, rflags=os.RWF_NOWAIT)
+
+    def testWritevRWF_SYNC(self):
+        payloads = [self.payloadSmall]
+        rbuffs = [bytearray(len(payloads[0]))]
+        self._testWriteReadv(payloads, rbuffs, wflags=os.RWF_SYNC)
+
+    def testFsync(self):
+        self._testWriteRead(self.payloadSmall)
+        os.fsync(self.hermes)
+
+    def testFsyncBeforeProg(self):
+        with self.assertRaisesRegex(OSError, "File descriptor in bad state"):
+            os.fsync(self.hermes)
+
+    def testFsyncBeforeWrite(self):
+        self._sendProgram()
+        with self.assertRaisesRegex(OSError, "File descriptor in bad state"):
+            os.fsync(self.hermes)
+
+    def testInvalidProg(self):
+        prog = bytes.fromhex('ff ff ff ff ff ff ff ff')
+        self._testWriteRead(self.payloadSmall, prog)
+        with self.assertRaisesRegex(OSError, "Exec format error"):
+            os.fsync(self.hermes)
 
 if __name__ == '__main__':
     unittest.TestProgram(buffer=True, catchbreak=True)

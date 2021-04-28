@@ -36,7 +36,7 @@ int main()
 	int hermes_fd;
 	int ret;
 	struct hermes_download_prog_ioctl_argp argp = {
-		.len = BUF_SIZE,
+		.len = 16,
 	};
 	struct iovec iov;
 
@@ -51,7 +51,7 @@ int main()
 	/* Initialize buffers */
 	src = malloc(BUF_SIZE * sizeof(char));
 	dst = malloc(BUF_SIZE * sizeof(char));
-	prog = malloc(BUF_SIZE * sizeof(char));
+	prog = malloc(16 * sizeof(char));
 
 	if (!src || !dst || !prog) {
 		fprintf(stderr, "Failed to allocate buffers\n");
@@ -61,7 +61,15 @@ int main()
 
 	memset(src, 0xFF, BUF_SIZE);
 	memset(dst, 0x00, BUF_SIZE);
-	memset(prog, 0x55, BUF_SIZE); /* Not really an eBPF program... */
+
+	/*
+	 * Create an eBPF program with two instructions:
+	 *     r0 = 0 (b7 00 00 00 00 00 00 00)
+	 *     ret    (95 00 00 00 00 00 00 00)
+	 */
+	memset(prog, 0, 16);
+	prog[0] = 0xb7;
+	prog[8] = 0x95;
 
 	/* Send the eBPF program */
 	argp.prog = (uint64_t) prog;
@@ -71,12 +79,12 @@ int main()
 		goto out_free;
 	}
 
-	/* Write some data */
+	/* Write some data and start the program (via the RWF_SYNC flag) */
 	iov.iov_base = src;
 	iov.iov_len = BUF_SIZE;
-	ret = pwritev2(hermes_fd, &iov, 1, 0, 0);
+	ret = pwritev2(hermes_fd, &iov, 1, 0, RWF_SYNC);
 	if (ret < 0) {
-		perror("Failed to write data");
+		perror("Failed to write data/execute program");
 		ret = 1;
 		goto out_free;
 	}
