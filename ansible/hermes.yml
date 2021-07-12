@@ -13,5 +13,4 @@
   hosts: localhost
   roles:
     - role: pcimem
-    - role: xdma
-    - role: xdma_test
+    - role: hermes_mod
