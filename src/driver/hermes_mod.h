@@ -59,6 +59,16 @@
 extern unsigned int desc_blen_max;
 extern unsigned int sgdma_timeout;
 
+enum hermes_status {
+	HERMES_SUCCESS       = 0x00,
+	HERMES_NO_SPACE      = 0x01,
+	HERMES_INV_PROG_SLOT = 0x02,
+	HERMES_INV_DATA_SLOT = 0x03,
+	HERMES_INV_ADDR      = 0x04,
+	HERMES_EBPF_ERROR    = 0x05,
+	HERMES_INV_OPCODE    = 0x06,
+};
+
 struct xdma_channel {
 	struct xdma_dev *xdev;
 	struct xdma_engine *engine;	/* engine instance, if needed */
@@ -77,6 +87,50 @@ struct __attribute__((__packed__)) hermes_cfg {
 	uint32_t ehdssze;
 };
 
+struct __attribute__((__packed__)) hermes_cmd_req {
+	uint8_t opcode;
+	uint8_t rsv0;
+	uint16_t cid;
+	uint32_t rsv1;
+
+	uint8_t prog_slot;
+	uint8_t data_slot;
+	uint16_t rsv2;
+	uint32_t prog_len;
+
+	uint8_t rsv3[16];
+};
+
+struct __attribute__((__packed__)) hermes_cmd_res {
+	uint16_t cid;
+	uint8_t status;
+	uint8_t rsv[5];
+
+	uint64_t ebpf_ret;
+};
+
+struct __attribute__((__packed__)) hermes_cmd {
+	struct hermes_cmd_req req;
+	struct hermes_cmd_res res;
+};
+
+struct __attribute__((__packed__)) hermes_cmd_ctrl {
+	uint8_t ehcmdexec;
+	uint8_t ehcmddone;
+	uint8_t rsv[6];
+};
+
+struct ebpf_irq {
+	wait_queue_head_t wq;
+	int irq_line;
+};
+
+struct ida_wq {
+	struct ida ida;
+	unsigned int max;
+	wait_queue_head_t wq;
+};
+
 struct hermes_dev {
 	struct device dev;
 	struct pci_dev *pdev;
@@ -87,12 +141,13 @@ struct hermes_dev {
 	struct hermes_cfg cfg;
 	struct ida prog_slots;
 	struct ida data_slots;
-};
 
-struct ida_wq {
-	struct ida ida;
-	unsigned int max;
-	wait_queue_head_t wq;
+	struct ida_wq ebpf_engines_ida_wq;
+
+	struct hermes_cmd __iomem *cmds;
+	struct hermes_cmd_ctrl __iomem *cmds_ctrl;
+
+	struct ebpf_irq *irq;
 };
 
 /* XDMA PCIe device specific book-keeping */
@@ -115,6 +170,8 @@ struct xdma_channel *xdma_get_c2h(struct hermes_pci_dev *hpdev);
 struct xdma_channel *xdma_get_h2c(struct hermes_pci_dev *hpdev);
 void xdma_release_c2h(struct xdma_channel *chnl);
 void xdma_release_h2c(struct xdma_channel *chnl);
+int hermes_get_ebpf_eng(struct hermes_dev *hdev);
+void hermes_release_ebpf_eng(struct hermes_dev *hdev, int engine);
 
 int hermes_cdev_init(void);
 void hermes_cdev_cleanup(void);

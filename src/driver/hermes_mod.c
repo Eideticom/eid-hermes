@@ -55,14 +55,81 @@ static const struct pci_device_id pci_ids[] = {
 };
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
+static void ebpf_msix_teardown(struct hermes_dev *hdev)
+{
+	int i;
+
+	for (i = 0; i < hdev->cfg.eheng; i++) {
+		if (!hdev->irq[i].irq_line)
+			break;
+		pr_debug("Release IRQ#%d for eBPF engine %d\n",
+			hdev->irq[i].irq_line, i);
+		free_irq(hdev->irq[i].irq_line, &hdev->irq[i]);
+	}
+}
+
+static void irq_teardown(struct hermes_pci_dev *hpdev)
+{
+	xdma_irq_teardown(hpdev->xdev);
+	ebpf_msix_teardown(hpdev->hdev);
+}
+
+static irqreturn_t ebpf_irq(int irq, void *ptr)
+{
+	struct ebpf_irq *arg = ptr;
+	pr_debug("(irq=%d) eBPF interrupt handler\n", irq);
+	wake_up_interruptible(&arg->wq);
+
+	return IRQ_HANDLED;
+}
+
+static int ebpf_irq_setup(struct hermes_dev *hdev, int first)
+{
+	unsigned int vector;
+	int i, rc;
+
+	for (i = 0; i < hdev->cfg.eheng; i++) {
+		vector = pci_irq_vector(hdev->pdev, first + i);
+		rc = request_irq(vector, ebpf_irq, 0, DRV_MODULE_NAME,
+				&hdev->irq[i]);
+		if (rc) {
+			pr_err("request irq#%d failed %d, eBPF engine %d.\n",
+				vector, rc, i);
+			return rc;
+		}
+		pr_info("eBPF engine %d, irq#%d.\n", i, vector);
+		init_waitqueue_head(&hdev->irq[i].wq);
+		hdev->irq[i].irq_line = vector;
+	}
+
+	return 0;
+}
+
+static int irq_setup(struct hermes_pci_dev *hpdev)
+{
+	struct xdma_dev *xdev = hpdev->xdev;
+	int rc;
+
+	rc = xdma_irq_setup(xdev);
+	if (rc)
+		goto out;
+
+	rc = ebpf_irq_setup(hpdev->hdev, xdev->h2c_channel_max +
+			xdev->c2h_channel_max);
+out:
+	return rc;
+}
+
 static void disable_msi_msix(struct pci_dev *pdev)
 {
 	pci_disable_msix(pdev);
 }
 
-static int enable_msi_msix(struct xdma_dev *xdev)
+static int enable_msi_msix(struct hermes_pci_dev *hpdev)
 {
-	struct pci_dev *pdev = xdev->pdev;
+	struct hermes_dev *hdev = hpdev->hdev;
+	struct xdma_dev *xdev = hpdev->xdev;
+	struct pci_dev *pdev = hpdev->pdev;
 	int rv, req_nvec;
 
 	if (unlikely(!xdev || !pdev)) {
@@ -70,7 +137,8 @@ static int enable_msi_msix(struct xdma_dev *xdev)
 		return -EINVAL;
 	}
 
-	req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max;
+	req_nvec = xdev->c2h_channel_max + xdev->h2c_channel_max +
+		hdev->cfg.eheng;
 
 	pr_debug("Enabling MSI-X\n");
 	rv = pci_alloc_irq_vectors(pdev, req_nvec, req_nvec,
@@ -87,6 +155,8 @@ static void hpdev_free(struct hermes_pci_dev *hpdev)
 
 	ida_destroy(&hpdev->c2h_ida_wq.ida);
 	ida_destroy(&hpdev->h2c_ida_wq.ida);
+	ida_destroy(&hpdev->hdev->ebpf_engines_ida_wq.ida);
+
 	hpdev->xdev = NULL;
 	pr_info("hpdev 0x%p, xdev 0x%p xdma_device_close.\n", hpdev, xdev);
 	xdma_device_close(hpdev->pdev, xdev);
@@ -180,23 +250,24 @@ static int probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (rv)
 		goto err_out;
 
-	rv = enable_msi_msix(xdev);
+	rv = enable_msi_msix(hpdev);
 	if (rv < 0)
 		goto err_enable_msix;
 
-	rv = xdma_irq_setup(xdev);
+	rv = irq_setup(hpdev);
 	if (rv < 0)
 		goto err_interrupts;
 
 	init_ida_wq(&hpdev->c2h_ida_wq, hpdev->c2h_channel_max - 1);
 	init_ida_wq(&hpdev->h2c_ida_wq, hpdev->h2c_channel_max - 1);
+	init_ida_wq(&hpdev->hdev->ebpf_engines_ida_wq, hpdev->hdev->cfg.eheng);
 
 	dev_set_drvdata(&pdev->dev, hpdev);
 
 	return 0;
 
 err_interrupts:
-	xdma_irq_teardown(xdev);
+	irq_teardown(hpdev);
 err_enable_msix:
 	disable_msi_msix(pdev);
 err_out:
@@ -216,7 +287,7 @@ static void remove_one(struct pci_dev *pdev)
 	if (!hpdev)
 		return;
 
-	xdma_irq_teardown(hpdev->xdev);
+	irq_teardown(hpdev);
 	disable_msi_msix(pdev);
 
 	hermes_cdev_destroy(hpdev);
@@ -239,7 +310,7 @@ static pci_ers_result_t xdma_error_detected(struct pci_dev *pdev,
 		pr_warn("dev 0x%p,0x%p, frozen state error, reset controller\n",
 			pdev, hpdev);
 		xdma_device_offline(pdev, hpdev->xdev);
-		xdma_irq_teardown(hpdev->xdev);
+		irq_teardown(hpdev);
 		pci_disable_device(pdev);
 		return PCI_ERS_RESULT_NEED_RESET;
 	case pci_channel_io_perm_failure:
@@ -264,7 +335,7 @@ static pci_ers_result_t xdma_slot_reset(struct pci_dev *pdev)
 	pci_restore_state(pdev);
 	pci_save_state(pdev);
 	xdma_device_online(pdev, hpdev->xdev);
-	xdma_irq_setup(hpdev->xdev);
+	irq_setup(hpdev);
 
 	return PCI_ERS_RESULT_RECOVERED;
 }
@@ -350,6 +421,16 @@ void xdma_release_h2c(struct xdma_channel *chnl)
 
 	hpdev = container_of(chnl, struct hermes_pci_dev, xdma_h2c_chnl[id]);
 	ida_wq_release(&hpdev->h2c_ida_wq, id);
+}
+
+int hermes_get_ebpf_eng(struct hermes_dev *hdev)
+{
+	return ida_wq_get(&hdev->ebpf_engines_ida_wq);
+}
+
+void hermes_release_ebpf_eng(struct hermes_dev *hdev, int engine)
+{
+	ida_wq_release(&hdev->ebpf_engines_ida_wq, engine);
 }
 
 static struct pci_driver pci_driver = {

@@ -36,6 +36,11 @@
 #define HERMES_MINOR_COUNT	16
 #define HERMES_NAME		"hermes"
 
+#define HERMES_OPCODE_RUN_PROG  0x80
+
+#define HERMES_CMDREQ_BASE      0x1000
+#define HERMES_CMDCTRL_BASE     0x2000
+
 static struct class *hermes_class;
 DEFINE_IDA(hermes_ida);
 static dev_t hermes_devt;
@@ -44,6 +49,8 @@ struct hermes_env {
 	struct hermes_dev *hermes;
 	int32_t prog_slot;
 	int32_t data_slot;
+	int32_t prog_len;
+	uint16_t cid;
 };
 
 static inline void hermes_release_slot_prog(struct hermes_env *env)
@@ -80,6 +87,7 @@ static int hermes_open(struct inode *inode, struct file *filp)
 	env->hermes = hermes;
 	env->prog_slot = -1;
 	env->data_slot = -1;
+	env->cid = 0;
 	filp->private_data = env;
 
 	return 0;
@@ -97,6 +105,109 @@ static int hermes_close(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+static int __cmd_comp(struct hermes_dev *hermes, int eng)
+{
+	return ioread8(&hermes->cmds_ctrl[eng].ehcmddone);
+}
+
+static int hermes_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
+{
+	struct hermes_env *env = filp->private_data;
+	struct hermes_dev *hermes = env->hermes;
+	struct hermes_cmd cmd = {
+		.req = {
+			.opcode = HERMES_OPCODE_RUN_PROG,
+			.cid = env->cid,
+			.prog_slot = env->prog_slot,
+			.data_slot = env->data_slot,
+			.prog_len = env->prog_len,
+		},
+	};
+	int eng, res;
+	int64_t ebpf_ret;
+
+	if (env->prog_slot < 0) {
+		dev_err(&hermes->dev,
+			"Program has not been downloaded to device. Aborting.\n");
+		return -EBADFD;
+	}
+
+	if (env->data_slot < 0) {
+		dev_err(&hermes->dev,
+			"No data has been transferred to device. Aborting.\n");
+		return -EBADFD;
+	}
+
+	eng = hermes_get_ebpf_eng(hermes);
+	if (eng < 0)
+		return eng;
+
+	pr_debug("opcode: 0x%x cid: 0x%x prog_slot: 0x%x data_slot: 0x%x\n",
+			cmd.req.opcode, cmd.req.cid, cmd.req.prog_slot,
+			cmd.req.data_slot);
+
+	memcpy_toio(&hermes->cmds[eng].req, &cmd.req, sizeof(cmd.req));
+	iowrite8(1, &hermes->cmds_ctrl[eng].ehcmdexec);
+
+	res = wait_event_interruptible(hermes->irq[eng].wq,
+				       __cmd_comp(hermes, eng));
+	if (res)
+		goto out;
+
+	memcpy_fromio(&cmd.res, &hermes->cmds[eng].res, sizeof(cmd.res));
+
+	if (cmd.req.cid != hermes->cmds[eng].res.cid) {
+		res = -EBADE;
+		goto out;
+	}
+
+	switch (hermes->cmds[eng].res.status) {
+	case HERMES_SUCCESS:
+		ebpf_ret = hermes->cmds[eng].res.ebpf_ret;
+		if (ebpf_ret) {
+			dev_warn(&hermes->dev,
+				"Hermes returned with status 0x%x but eBPF return 0x%llx (expected 0)\n",
+				HERMES_SUCCESS, ebpf_ret);
+			res = -ENOEXEC;
+		} else {
+			res = 0;
+		}
+		break;
+
+	case HERMES_INV_PROG_SLOT:
+		dev_err(&hermes->dev, "Invalid program slot");
+		res = -EBADFD;
+		break;
+
+	case HERMES_INV_DATA_SLOT:
+		dev_err(&hermes->dev, "Invalid data slot");
+		res = -EBADFD;
+		break;
+
+	case HERMES_EBPF_ERROR:
+		ebpf_ret = hermes->cmds[eng].res.ebpf_ret;
+		dev_err(&hermes->dev, "eBPF execution error. eBPF return code: %llx\n", ebpf_ret);
+		res = -ENOEXEC;
+		break;
+
+	case HERMES_INV_OPCODE:
+		dev_err(&hermes->dev, "Invalid opcode");
+		res = -EINVAL;
+		break;
+
+	default:
+		dev_err(&hermes->dev, "Unexpected command status: 0x%x\n",
+			hermes->cmds[eng].res.status);
+		res = -EIO;
+		break;
+	}
+
+out:
+	env->cid++;
+	hermes_release_ebpf_eng(hermes, eng);
+	return res;
+}
+
 static ssize_t hermes_read_write_iter(struct kiocb *iocb, struct iov_iter *to)
 {
 	struct hermes_env *env = iocb->ki_filp->private_data;
@@ -105,10 +216,9 @@ static ssize_t hermes_read_write_iter(struct kiocb *iocb, struct iov_iter *to)
 	struct xdma_channel *chnl;
 	loff_t offset = iocb->ki_pos, pos;
 	bool write = (iov_iter_rw(to) == WRITE);
-	long res;
+	long ret, ret2;
 
-	if (iocb->ki_flags & (IOCB_DSYNC | IOCB_SYNC | IOCB_APPEND |
-				IOCB_NOWAIT))
+	if (iocb->ki_flags & (IOCB_APPEND | IOCB_NOWAIT))
 		return -EOPNOTSUPP;
 
 	if (offset == -1)
@@ -141,14 +251,20 @@ static ssize_t hermes_read_write_iter(struct kiocb *iocb, struct iov_iter *to)
 
 	pos = cfg->ehdsoff + offset + env->data_slot * cfg->ehdssze;
 	iov_iter_truncate(to, cfg->ehdssze - offset);
-	res = xdma_channel_read_write(chnl, to, pos);
+	ret = xdma_channel_read_write(chnl, to, pos);
 
 	if (write)
 		xdma_release_h2c(chnl);
 	else
 		xdma_release_c2h(chnl);
 
-	return res;
+	if (ret > 0 && write && iocb->ki_flags & IOCB_SYNC) {
+		ret2 = hermes_fsync(iocb->ki_filp, 0, LONG_MAX, 0);
+		if (ret2)
+			ret = ret2;
+	}
+
+	return ret;
 }
 
 static long hermes_download_program(struct hermes_env *env,
@@ -174,6 +290,7 @@ static long hermes_download_program(struct hermes_env *env,
 			argp->len, cfg->ehpssze);
 		return -EINVAL;
 	}
+	env->prog_len = argp->len;
 
 	if (env->prog_slot < 0) {
 		env->prog_slot = hermes_request_slot_prog(hpdev->hdev);
@@ -220,6 +337,7 @@ static const struct file_operations hermes_fops = {
 	.unlocked_ioctl = hermes_ioctl,
 	.read_iter = hermes_read_write_iter,
 	.write_iter = hermes_read_write_iter,
+	.fsync = hermes_fsync,
 };
 
 static struct hermes_dev *to_hermes(struct device *dev)
@@ -231,6 +349,7 @@ static void hermes_release(struct device *dev)
 {
 	struct hermes_dev *hermes = to_hermes(dev);
 
+	kfree(hermes->irq);
 	kfree(hermes);
 }
 
@@ -251,6 +370,20 @@ static int hermes_read_cfg(struct hermes_pci_dev *hpdev)
 	return 0;
 }
 
+static int hermes_set_cmd_regs(struct hermes_pci_dev *hpdev)
+{
+	void __iomem *bar0 = pci_iomap(hpdev->pdev, 0, HERMES_CMDCTRL_BASE
+				+ hpdev->hdev->cfg.eheng
+				* sizeof(struct hermes_cmd_ctrl));
+	if (!bar0)
+		return -EFAULT;
+
+	hpdev->hdev->cmds = bar0 + HERMES_CMDREQ_BASE;
+	hpdev->hdev->cmds_ctrl = bar0 + HERMES_CMDCTRL_BASE;
+
+	return 0;
+}
+
 int hermes_cdev_create(struct hermes_pci_dev *hpdev)
 {
 	struct pci_dev *pdev = hpdev->pdev;
@@ -268,16 +401,24 @@ int hermes_cdev_create(struct hermes_pci_dev *hpdev)
 	err = hermes_read_cfg(hpdev);
 	if (err)
 		goto out_free;
+	err = hermes_set_cmd_regs(hpdev);
+	if (err)
+		goto out_free;
 
 	device_initialize(&hermes->dev);
 	hermes->dev.class = hermes_class;
 	hermes->dev.parent = &pdev->dev;
 	hermes->dev.release = hermes_release;
 
+	hermes->irq = kcalloc(hermes->cfg.eheng, sizeof(*hermes->irq),
+			GFP_KERNEL);
+	if (!hermes->irq)
+		goto out_free;
+
 	hermes->id = ida_simple_get(&hermes_ida, 0, 0, GFP_KERNEL);
 	if (hermes->id < 0) {
 		err = hermes->id;
-		goto out_free;
+		goto out_free_irq;
 	}
 
 	dev_set_name(&hermes->dev, "hermes%d", hermes->id);
@@ -298,6 +439,8 @@ int hermes_cdev_create(struct hermes_pci_dev *hpdev)
 
 out_ida:
 	ida_simple_remove(&hermes_ida, hermes->id);
+out_free_irq:
+	kfree(hermes->irq);
 out_free:
 	kfree(hermes);
 	return err;
