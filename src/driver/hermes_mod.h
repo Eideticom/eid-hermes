@@ -71,9 +71,9 @@ struct __attribute__((__packed__)) hermes_cfg {
 	uint8_t ehpslot;
 	uint8_t ehdslot;
 	uint8_t rsv0;
-	uint32_t ehpsoff;
+	uint64_t ehpsoff;
 	uint32_t ehpssze;
-	uint32_t ehdsoff;
+	uint64_t ehdsoff;
 	uint32_t ehdssze;
 };
 

@@ -244,7 +244,7 @@ static int hermes_read_cfg(struct hermes_pci_dev *hpdev)
 	cfg = &hpdev->hdev->cfg;
 
 	memcpy_fromio(cfg, bar0, sizeof(*cfg));
-	pr_debug("ehver: 0x%x ehbld: %s eheng: 0x%x ehpslot: 0x%x ehdslot: 0x%x ehpsoff: 0x%x ehpssze: 0x%x ehdsoff: 0x%x ehdssze: 0x%x\n",
+	pr_debug("ehver: 0x%x ehbld: %s eheng: 0x%x ehpslot: 0x%x ehdslot: 0x%x ehpsoff: 0x%llx ehpssze: 0x%x ehdsoff: 0x%llx ehdssze: 0x%x\n",
 			cfg->ehver, cfg->ehbld, cfg->eheng, cfg->ehpslot,
 			cfg->ehdslot, cfg->ehpsoff, cfg->ehpssze, cfg->ehdsoff,
 			cfg->ehdssze);
