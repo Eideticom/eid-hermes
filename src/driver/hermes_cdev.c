@@ -147,6 +147,7 @@ static int hermes_fsync(struct file *filp, loff_t start, loff_t end, int datasyn
 			cmd.req.data_slot);
 
 	memcpy_toio(&hermes->cmds[eng].req, &cmd.req, sizeof(cmd.req));
+        iowrite8(0, &hermes->cmds_ctrl[eng].ehcmddone);
 	iowrite8(1, &hermes->cmds_ctrl[eng].ehcmdexec);
 
 	res = wait_event_interruptible(hermes->irq[eng].wq,
