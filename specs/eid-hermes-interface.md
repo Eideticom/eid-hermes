@@ -61,7 +61,7 @@ commands.
 | Byte | Name      | Mode | Description |
 |------|-----------|------|-------------|
 | 0    | EHCMDEXEC | RW   | Host writes 1 to start command. Device clears after command finishes |
-| 1    | EHCMDDONE | RO   | Indicates if command has finished. Cleared by device before starting command, set when done |
+| 1    | EHCMDDONE | RW   | Indicates if command has finished. Cleared by host before starting command, set when done |
 | 2-7  | --        | --   | Reserved |
 
 ## BAR2 Layout
