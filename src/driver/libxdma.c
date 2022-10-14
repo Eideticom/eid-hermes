@@ -23,6 +23,7 @@
  ******************************************************************************/
 
 #define pr_fmt(fmt)     KBUILD_MODNAME ":%s: " fmt, __func__
+#define NUM_USR_IRQS	16
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -267,6 +268,26 @@ static void channel_interrupts_enable(struct xdma_dev *xdev)
 static void channel_interrupts_disable(struct xdma_dev *xdev)
 {
 	channel_interrupts_mask(xdev, 0);
+}
+
+/* user_interrupts_enable -- Enable interrupts we are interested in */
+static void user_interrupts_enable(struct xdma_dev *xdev, u32 mask)
+{
+	    struct interrupt_regs *reg =
+	            (struct interrupt_regs *)(xdev->bar[xdev->config_bar_idx] +
+	                                      XDMA_OFS_INT_CTRL);
+
+	    write_register(mask, &reg->user_int_enable_w1s, XDMA_OFS_INT_CTRL);
+}
+
+/* user_interrupts_disable -- Disable interrupts we not interested in */
+static void user_interrupts_disable(struct xdma_dev *xdev, u32 mask)
+{
+	    struct interrupt_regs *reg =
+	            (struct interrupt_regs *)(xdev->bar[xdev->config_bar_idx] +
+	                                      XDMA_OFS_INT_CTRL);
+
+	    write_register(mask, &reg->user_int_enable_w1c, XDMA_OFS_INT_CTRL);
 }
 
 /* read_interrupts -- Print the interrupt controller status */
@@ -1195,6 +1216,37 @@ static void pci_keep_intx_enabled(struct pci_dev *pdev)
 	}
 }
 
+static void prog_irq_msix_user(struct xdma_dev *xdev, bool clear)
+{
+	    /* user */
+	    struct interrupt_regs *int_regs =
+	            (struct interrupt_regs *)(xdev->bar[xdev->config_bar_idx] +
+	                                      XDMA_OFS_INT_CTRL);
+	    u32 i = xdev->c2h_channel_max + xdev->h2c_channel_max;
+	    u32 max = i + NUM_USR_IRQS;
+	    int j;
+
+	    for (j = 0; i < max; j++) {
+	            u32 val = 0;
+	            int k;
+	            int shift = 0;
+
+	            if (clear)
+	                    i += 4;
+	            else
+	                    for (k = 0; k < 4 && i < max; i++, k++, shift += 8)
+	                            val |= (i & 0x1f) << shift;
+
+	            write_register(
+	                    val, &int_regs->user_msi_vector[j],
+	                    XDMA_OFS_INT_CTRL +
+	                            ((unsigned long)&int_regs->user_msi_vector[j] -
+	                             (unsigned long)int_regs));
+
+	            pr_debug("vector %d, 0x%x.\n", j, val);
+	    }
+}
+
 static void prog_irq_msix_channel(struct xdma_dev *xdev, bool clear)
 {
 	struct interrupt_regs *int_regs = (struct interrupt_regs *)
@@ -1226,10 +1278,14 @@ static void prog_irq_msix_channel(struct xdma_dev *xdev, bool clear)
 
 void xdma_irq_teardown(struct xdma_dev *xdev)
 {
+	// Sets NUM_USR_IRQS + 1 bits to 1 to disable all IRQs
+	u32 mask = (1 << (NUM_USR_IRQS + 1)) - 1;
+
 	struct xdma_engine *engine;
 	int j = 0;
 	int i = 0;
 
+	user_interrupts_disable(xdev, mask);
 	channel_interrupts_disable(xdev);
 	read_interrupts(xdev);
 
@@ -1301,6 +1357,9 @@ static int irq_msix_channel_setup(struct xdma_dev *xdev)
 
 int xdma_irq_setup(struct xdma_dev *xdev)
 {
+	// Sets NUM_USR_IRQS + 1 bits to 1 to enable all IRQs
+	u32 mask = (1 << (NUM_USR_IRQS + 1)) - 1;
+
 	int rv;
 	pci_keep_intx_enabled(xdev->pdev);
 
@@ -1308,8 +1367,10 @@ int xdma_irq_setup(struct xdma_dev *xdev)
 	if (rv)
 		return rv;
 	prog_irq_msix_channel(xdev, 0);
+ 	prog_irq_msix_user(xdev, 0);
 
 	channel_interrupts_enable(xdev);
+	user_interrupts_enable(xdev, mask);
 	read_interrupts(xdev);
 
 	return 0;
