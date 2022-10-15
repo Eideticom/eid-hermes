@@ -39,15 +39,15 @@ commands.
 
 |Offset                  | Length | Name         | Mode | Value | Description            |
 |------------------------|--------|--------------|------|-------|------------------------|
-| 0x00                   | 4      | EHVER        | RO   | 1     | Interface version      |
+| 0x00                   | 4      | EHVER        | RO   | 2     | Interface version      |
 | 0x04                   | 48     | EHBLD        | RO   | NA    | Build version (git describe) |
 | 0x34                   | 1      | EHENG        | RO   | NA    | Number of eBPF Engines |
 | 0x35                   | 1      | EHPSLOT      | RO   | NA    | Number of program slots |
 | 0x36                   | 1      | EHDSLOT      | RO   | NA    | Number of data slots |
-| 0x38                   | 4      | EHPSOFF      | RO   | NA    | Base address in BAR4 of eBPF program slots |
-| 0x3C                   | 4      | EHPSSZE      | RO   | NA    | Size of a single program slot |
-| 0x40                   | 4      | EHDSOFF      | RO   | NA    | Base address in BAR4 of eBPF data slots |
-| 0x44                   | 4      | EHDSSZE      | RO   | NA    | Size of a single data slot |
+| 0x38                   | 8      | EHPSOFF      | RO   | NA    | Base address in BAR4 of eBPF program slots |
+| 0x40                   | 4      | EHPSSZE      | RO   | NA    | Size of a single program slot |
+| 0x44                   | 8      | EHDSOFF      | RO   | NA    | Base address in BAR4 of eBPF data slots |
+| 0x4C                   | 4      | EHDSSZE      | RO   | NA    | Size of a single data slot |
 | 0x1000                 | 32     | EHCMDREQ0    | RW   | NA    | Command Request for engine 0 |
 | 0x1020                 | 16     | EHCMDRES0    | RO   | NA    | Command Response for engine 0 |
 | ...                    | ...    | ...          | ...  | ...   | ... |
